@@ -232,8 +232,8 @@ export default function GI() {
 
           <section className="space-y-1.5 mt-3 shrink-0">
             <label className="block text-[10px] font-semibold text-text-main ml-1">Item Search</label>
-            <div className="flex gap-2">
-              <div className="flex-1">
+            <div className="flex flex-col gap-2">
+              <div className="w-full">
                 <ItemSearch 
                   key={`item-search-${itemSearchKey}`}
                   zid={zid}
@@ -243,28 +243,31 @@ export default function GI() {
                   disabled={!customer}
                 />
               </div>
-              <div className="w-16">
-                <input
-                  ref={quantityInputRef}
-                  type="number"
-                  min="1"
-                  placeholder="Qty"
-                  value={quantity}
-                  onChange={(e) => setQuantity(e.target.value ? Number(e.target.value) : '')}
-                  disabled={!selectedItem}
-                  className="appearance-none block w-full px-2 py-2 border border-ui-border rounded-lg text-text-main text-center focus:outline-none focus:ring-2 focus:ring-primary/40 text-[11px] disabled:opacity-50 disabled:bg-gray-50"
-                />
+              <div className="flex gap-2">
+                <div className="w-24">
+                  <input
+                    ref={quantityInputRef}
+                    type="number"
+                    min="1"
+                    placeholder="Qty"
+                    value={quantity}
+                    onChange={(e) => setQuantity(e.target.value ? Number(e.target.value) : '')}
+                    disabled={!selectedItem}
+                    className="appearance-none block w-full px-2 py-2 border border-ui-border rounded-lg text-text-main text-center focus:outline-none focus:ring-2 focus:ring-primary/40 text-[11px] disabled:opacity-50 disabled:bg-gray-50 h-[34px]"
+                  />
+                </div>
+                <div className="flex-1">
+                  <Button 
+                    variant="primary" 
+                    className="w-full py-2 h-[34px] text-[11px]"
+                    onClick={handleAddToCart}
+                    disabled={!selectedItem || !quantity || Number(quantity) < 1}
+                  >
+                    <Plus className="w-3.5 h-3.5 mr-1" /> Add to Cart
+                  </Button>
+                </div>
               </div>
             </div>
-            
-            <Button 
-                variant="primary" 
-                className="w-full mt-2 py-2 h-[34px] text-[11px]"
-                onClick={handleAddToCart}
-                disabled={!selectedItem || !quantity || Number(quantity) < 1}
-              >
-                <Plus className="w-3.5 h-3.5 mr-1" /> Add to Cart
-              </Button>
           </section>
 
           <div className="border-t border-ui-border/50 pt-3 mt-4 flex-1 flex flex-col min-h-0">
