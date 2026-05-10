@@ -1,0 +1,6 @@
+{
+  "name": "Order Management App",
+  "description": "Order sales application with multiple business IDs and location tracking.",
+  "requestFramePermissions": ["geolocation"],
+  "majorCapabilities": []
+}
