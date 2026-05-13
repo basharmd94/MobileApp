@@ -250,7 +250,7 @@ export default function RecVoucher() {
                   <div className="flex-1 pr-2">
                     <h3 className="text-[13px] font-bold text-text-main flex items-start gap-1.5 leading-tight">
                       <User className="w-3.5 h-3.5 text-orange-400 shrink-0 mt-0.5" />
-                      {rct.xshort || "Unknown Customer"}
+                       {rct.xsub || "Unknown Customer"}--{rct.xshort || "Unknown Customer"}
                     </h3>
                   </div>
                   <div className="text-right shrink-0">

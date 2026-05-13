@@ -337,6 +337,7 @@ export default function DeliveryOrders() {
                         <span className="text-[10px] font-medium text-text-secondary">
                           Order No: <span className="font-bold text-orange-600/80">{order.xordernum}</span>
                         </span>
+                        
                       </div>
                     )}
                   </div>
@@ -364,11 +365,12 @@ export default function DeliveryOrders() {
                               <div key={idx} className="flex justify-between items-start py-1.5 border-b border-ui-border/30 last:border-0">
                                  <div className="flex-1 pr-2">
                                    <div className="text-[10px] font-bold text-text-main leading-tight mb-0.5 max-w-[200px]">{it.xdesc}</div>
-                                   <div className="text-[9px] text-text-muted">Item: {it.xitem} • ৳{it.xrate}</div>
+                                   <div className="text-[9px] text-text-muted font-bold">Item: {it.xitem} • ৳{it.xrate}</div>
+                                   <div className="text-[9px] text-text-muted font-bold">Unit: {it.xunitstk}</div>
                                  </div>
                                  <div className="text-right shrink-0">
-                                   <div className="text-[10px] font-semibold text-text-main">৳{it.xlineamt?.toLocaleString()}</div>
-                                   <div className="text-[9px] text-text-muted">Qty: {it.xqty}</div>
+                                   <div className="text-[10px] font-semibold text-teal-900">৳{it.xlineamt?.toLocaleString()}</div>
+                                   <div className="text-[9px] text-text-muted font-bold">Qty: {it.xqty}</div>
                                  </div>
                               </div>
                            ))}

@@ -3,6 +3,7 @@ import api from './api';
 export interface DeliveryOrderLineItem {
   xitem: string;
   xdesc: string;
+  xunitstk: string;
   xqty: number;
   xrate: number;
   xlineamt: number;
@@ -16,6 +17,8 @@ export interface DeliveryOrder {
   xshort: string;
   xadd1: string;
   xstatusdor: string | null;     // ADDED: Delivery order status
+  xwh: string;
+  xproj: string;
   grossamt: number;
   discamt: number;
   netamt: number;
@@ -70,6 +73,7 @@ export interface DeliveryOrderDetailItem {
   xorg: string;
   xitem: string;
   xdesc: string;
+  xunitstk: string;
   xrate: number;
   xqty: number;
   xlineamt: number;
@@ -78,8 +82,11 @@ export interface DeliveryOrderDetailItem {
 export interface DeliveryOrderDetailResponse {
   zid: number;
   delivery_order: string;
+  xordernum: string;
   customer: string;
   xstatusdor: string | null;     // ADDED: Delivery order status
+  xproj: string;
+  xwh: string;
   line_items: DeliveryOrderDetailItem[];
   total_items: number;
   total_amount: number;
