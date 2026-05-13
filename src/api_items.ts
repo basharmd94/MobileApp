@@ -21,7 +21,7 @@ export interface Item {
 export const searchItems = async (
   zid: string | number, 
   searchQuery: string, 
-  limit = 10, 
+  limit = 20, 
   offset = 0
 ): Promise<Item[]> => {
     try {

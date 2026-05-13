@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ChevronLeft, Loader2, RefreshCw, Filter, X, Package, Calendar, Hash, User, TrendingUp, ChevronDown, ChevronUp } from 'lucide-react';
+import { ChevronLeft, Loader2, RefreshCw, Filter, X, Package, Calendar, Hash, User, TrendingUp, ChevronDown, ChevronUp, Building2, Circle } from 'lucide-react';
 import { getDeliveryOrders, DeliveryOrder } from '../api_delivery_orders';
 import { Customer, searchCustomers } from '../api_customers';
 import { Item, searchItems } from '../api_items';
@@ -117,6 +117,22 @@ export default function DeliveryOrders() {
     setExpandedOrders(prev => ({ ...prev, [id]: !prev[id] }));
   };
 
+  // Helper function to get status badge styling
+  const getStatusBadge = (status: string | null) => {
+    switch (status) {
+      case '2-Confirmed':
+        return { color: 'bg-emerald-100', textColor: 'text-emerald-700', text: 'Confirmed', dotColor: 'bg-emerald-500' };
+      case '3-Invoiced':
+        return { color: 'bg-blue-100', textColor: 'text-blue-700', text: 'Invoiced', dotColor: 'bg-blue-500' };
+      case '1-Pending':
+        return { color: 'bg-amber-100', textColor: 'text-amber-700', text: 'Pending', dotColor: 'bg-amber-500' };
+      case '4-Cancelled':
+        return { color: 'bg-red-100', textColor: 'text-red-700', text: 'Cancelled', dotColor: 'bg-red-500' };
+      default:
+        return { color: 'bg-gray-100', textColor: 'text-gray-700', text: status || 'Unknown', dotColor: 'bg-gray-500' };
+    }
+  };
+
   return (
     <div className="h-[100dvh] bg-bg-base flex flex-col relative max-w-md mx-auto shadow-2xl overflow-hidden md:max-w-full">
       {/* App Bar */}
@@ -134,9 +150,9 @@ export default function DeliveryOrders() {
         {/* Tabs */}
         <div className="flex bg-[#fff7ed] rounded-xl p-1 border border-orange-100 shadow-sm mb-3">
           {[
-            { id: '100001', label: 'HMBR' },
-            { id: '100000', label: 'GI' },
-            { id: '100005', label: 'Zepto' }
+            { id: '100001', label: 'HMBR', name: 'HMBR' },
+            { id: '100000', label: 'GI', name: 'GI' },
+            { id: '100005', label: 'Zepto', name: 'Zepto' }
           ].map((tab) => (
             <button
               key={tab.id}
@@ -265,11 +281,24 @@ export default function DeliveryOrders() {
           <div className="space-y-4">
             {orders.map((order, i) => {
               const isExpanded = expandedOrders[order.xdornum];
+              const statusBadge = getStatusBadge(order.xstatusdor);
               return (
                 <div 
                   key={order.xdornum || i} 
                   className="bg-[#fff7ed] border border-orange-100 p-3.5 rounded-[16px] shadow-[0_2px_10px_rgb(0,0,0,0.03)]"
                 >
+                  {/* Header with Business ID and Status */}
+                  <div className="flex justify-between items-start mb-2">
+                    <div className="flex items-center gap-2">
+                      <Building2 className="w-3.5 h-3.5 text-orange-400" />
+                      <span className="text-[10px] font-semibold text-text-muted">ZID: {order.zid}</span>
+                    </div>
+                    <div className={`flex items-center gap-1.5 px-2 py-0.5 rounded-full ${statusBadge.color}`}>
+                      <Circle className={`w-1.5 h-1.5 ${statusBadge.dotColor} fill-current`} />
+                      <span className={`text-[9px] font-bold ${statusBadge.textColor}`}>{statusBadge.text}</span>
+                    </div>
+                  </div>
+
                   <div className="flex justify-between items-start mb-3">
                     <div>
                       <h3 className="text-[13px] font-bold text-text-main flex items-center gap-1.5">

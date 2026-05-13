@@ -112,6 +112,17 @@ export function ItemSearch({
     return null;
   };
 
+  /**
+   * Get stock unit display
+   */
+  const getStockUnit = (item: Item): string | null => {
+    const stockUnit = item.stock_unit || item.xunitstk;
+    if (!stockUnit || stockUnit.trim() === '') {
+      return null;
+    }
+    return stockUnit;
+  };
+
   // Sync with controlled value
   useEffect(() => {
     if (value) {
@@ -231,6 +242,7 @@ export function ItemSearch({
               {results.map((item, index) => {
                 const stockStatus = getStockStatus(item.stock);
                 const discountInfo = getDiscountInfo(item);
+                const stockUnit = getStockUnit(item);
                 
                 return (
                   <li key={item.item_id || index}>
@@ -264,9 +276,15 @@ export function ItemSearch({
                             </span>
                           </div>
                           
-                          {/* Row 2: Group, Discount Info, Stock Status */}
+                          {/* Row 2: Group, Stock Unit, Discount Info, Stock Status */}
                           <div className="flex items-center gap-1.5 flex-wrap">
                             <span className="text-[10px] text-text-muted">{item.item_group}</span>
+                            
+                            {stockUnit && (
+                              <span className="text-[9px] text-text-muted bg-gray-100 px-1 py-0.5 rounded">
+                                {stockUnit}
+                              </span>
+                            )}
                             
                             {discountInfo && (
                               <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[8px] font-bold bg-purple-100 border border-purple-200 text-purple-700">

@@ -13,6 +13,38 @@
   --color-secondary-teal: #14B8A6;
   --color-secondary-gold: #F59E0B;
 
+  /* Teal Color Variants */
+  --color-teal: #14B8A6;
+  --color-teal-hover: #0D9488;
+  --color-teal-light: #5EEAD4;
+  --color-teal-dark: #0F766E;
+  --color-teal-50: #F0FDFA;
+  --color-teal-100: #CCFBF1;
+  --color-teal-200: #99F6E4;
+  --color-teal-300: #5EEAD4;
+  --color-teal-400: #2DD4BF;
+  --color-teal-500: #14B8A6;
+  --color-teal-600: #0D9488;
+  --color-teal-700: #0F766E;
+  --color-teal-800: #115E59;
+  --color-teal-900: #134E4A;
+
+  /* Purple Color Variants */
+  --color-purple: #8B5CF6;
+  --color-purple-hover: #7C3AED;
+  --color-purple-light: #C4B5FD;
+  --color-purple-dark: #6D28D9;
+  --color-purple-50: #F5F3FF;
+  --color-purple-100: #EDE9FE;
+  --color-purple-200: #DDD6FE;
+  --color-purple-300: #C4B5FD;
+  --color-purple-400: #A78BFA;
+  --color-purple-500: #8B5CF6;
+  --color-purple-600: #7C3AED;
+  --color-purple-700: #6D28D9;
+  --color-purple-800: #5B21B6;
+  --color-purple-900: #4C1D95;
+
   --color-bg-base: #F8FAFC;
   --color-bg-card: #FFFFFF;
   --color-sidebar: #0F172A;

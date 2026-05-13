@@ -1,6 +1,6 @@
 import api from './api';
 
-export interface DeliveryOrderItem {
+export interface DeliveryOrderLineItem {
   xitem: string;
   xdesc: string;
   xqty: number;
@@ -9,18 +9,19 @@ export interface DeliveryOrderItem {
 }
 
 export interface DeliveryOrder {
+  zid: number;                    // ADDED: Business ID
   xdornum: string;
   xordernum: string;
   xcus: string;
   xshort: string;
   xadd1: string;
-  xzid: string | number;
+  xstatusdor: string | null;     // ADDED: Delivery order status
   grossamt: number;
   discamt: number;
   netamt: number;
   xdate: string;
   xdatepay: string | null;
-  items: DeliveryOrderItem[];
+  items: DeliveryOrderLineItem[];
 }
 
 export interface DeliveryOrdersResponse {
@@ -57,5 +58,34 @@ export const getDeliveryOrders = async (params: GetDeliveryOrdersParams): Promis
   }
 
   const response = await api.get(`/order/get-delivery-orders?${queryParams.toString()}`);
+  return response.data;
+};
+
+// Optional: Add a detail endpoint interface if you need it
+export interface DeliveryOrderDetailItem {
+  zid: number;
+  xdate: string;
+  xdornum: string;
+  xcus: string;
+  xorg: string;
+  xitem: string;
+  xdesc: string;
+  xrate: number;
+  xqty: number;
+  xlineamt: number;
+}
+
+export interface DeliveryOrderDetailResponse {
+  zid: number;
+  delivery_order: string;
+  customer: string;
+  xstatusdor: string | null;     // ADDED: Delivery order status
+  line_items: DeliveryOrderDetailItem[];
+  total_items: number;
+  total_amount: number;
+}
+
+export const getDeliveryOrderDetail = async (xdornum: string, zid: string): Promise<DeliveryOrderDetailResponse> => {
+  const response = await api.get(`/order/get-delivery-order/${xdornum}?zid=${zid}`);
   return response.data;
 };
