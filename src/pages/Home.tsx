@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getCurrentUser, logout } from '../api_users';
-import { Loader2, LogOut, User, LayoutDashboard, ShoppingCart, BarChart3, Bell, Search, Plus, Send, CheckCircle2, Minus, Trash2, X } from 'lucide-react';
+import { Loader2, LogOut, User, LayoutDashboard, ShoppingCart, BarChart3, Bell, Search, Plus, Send, CheckCircle2, Minus, Trash2, X, MessageSquare, Receipt, ShoppingBag, Clock, Ban, Package } from 'lucide-react';
 import { Card, IconBox, Button, ConfirmModal } from '../components';
 import { sendBulkOrders } from '../api_send_orders';
+import { PendingOrder } from '../api_orders';
 
 export default function Home() {
   const [user, setUser] = useState<any>(null);
@@ -11,7 +12,7 @@ export default function Home() {
   const [activeTab, setActiveTab] = useState('dashboard');
   const navigate = useNavigate();
 
-  // For pending orders state
+  // For outstanding offline orders state
   const [pendingOrders, setPendingOrders] = useState<any[]>([]);
   const [isSending, setIsSending] = useState(false);
   
@@ -533,63 +534,74 @@ export default function Home() {
                 </div>
               </div>
 
-              <div className="flex items-center justify-between mb-3 mt-1">
-                <h3 className="text-sm font-bold text-text-main">Overview</h3>
-                <button className="text-[11px] font-bold text-primary">View All</button>
-              </div>
+              {/* Action Buttons Section */}
+              <div className="mb-5">
+                <div className="bg-[#fff7ed] border border-orange-100 rounded-[16px] p-3 shadow-[0_2px_10px_rgb(0,0,0,0.03)] text-text-main flex flex-col gap-2">
+                    <div className="grid grid-cols-3 gap-2">
+                     <button
+                       onClick={() => navigate('/feedback')} 
+                       className="flex flex-col items-center justify-center bg-white p-3 rounded-xl shadow-[0_1px_4px_rgb(0,0,0,0.02)] border border-[#e2e8f0]/60 hover:bg-blue-50/50 hover:border-blue-200 transition-all active:scale-95"
+                     >
+                       <div className="w-10 h-10 rounded-full bg-blue-100/80 text-blue-600 flex items-center justify-center mb-2">
+                         <MessageSquare className="w-4 h-4" strokeWidth={2.5} />
+                       </div>
+                       <span className="text-[10px] font-bold text-slate-700 leading-tight">Feedback</span>
+                     </button>
+                     
+                     <button 
+                       onClick={() => navigate('/rec-voucher')}
+                       className="flex flex-col items-center justify-center bg-white p-3 rounded-xl shadow-[0_1px_4px_rgb(0,0,0,0.02)] border border-[#e2e8f0]/60 hover:bg-orange-50/50 hover:border-orange-200 transition-all active:scale-95"
+                     >
+                       <div className="w-10 h-10 rounded-full bg-orange-100/80 text-orange-600 flex items-center justify-center mb-2">
+                         <Receipt className="w-4 h-4" strokeWidth={2.5} />
+                       </div>
+                       <span className="text-[10px] font-bold text-slate-700 text-center leading-tight">Rec Voucher</span>
+                     </button>
 
-              {/* KPI Cards Mobile Style */}
-              <div className="grid grid-cols-2 gap-2.5 mb-5">
-                <Card className="!p-3">
-                  <IconBox icon={ShoppingCart} variant="primary" size="sm" className="mb-2" />
-                  <p className="text-[11px] font-semibold text-text-muted mb-0.5">Orders</p>
-                  <p className="text-[15px] font-bold text-text-main">1,248</p>
-                </Card>
-                
-                <Card className="!p-3">
-                  <IconBox icon={User} variant="secondary-blue" size="sm" className="mb-2" />
-                  <p className="text-[11px] font-semibold text-text-muted mb-0.5">Customers</p>
-                  <p className="text-[15px] font-bold text-text-main">4,592</p>
-                </Card>
-
-                 <Card className="!p-3">
-                  <IconBox icon={BarChart3} variant="secondary-teal" size="sm" className="mb-2" />
-                  <p className="text-[11px] font-semibold text-text-muted mb-0.5">Conversion</p>
-                  <p className="text-[15px] font-bold text-text-main">3.2%</p>
-                </Card>
-
-                <Card 
-                   activeScale
-                   onClick={() => navigate('/add')}
-                   className="flex flex-col justify-center items-center !p-3">
-                   <div className="w-8 h-8 rounded-full border-2 border-dashed border-primary/40 flex items-center justify-center mb-1 text-primary">
-                     <Plus className="w-4 h-4" />
+                     <button 
+                       onClick={() => navigate('/delivery-orders')}
+                       className="flex flex-col items-center justify-center bg-white p-3 rounded-xl shadow-[0_1px_4px_rgb(0,0,0,0.02)] border border-[#e2e8f0]/60 hover:bg-purple-50/50 hover:border-purple-200 transition-all active:scale-95"
+                     >
+                       <div className="w-10 h-10 rounded-full bg-purple-100/80 text-purple-600 flex items-center justify-center mb-2">
+                         <Package className="w-4 h-4" strokeWidth={2.5} />
+                       </div>
+                       <span className="text-[10px] font-bold text-slate-700 text-center leading-tight">Delivery</span>
+                     </button>
                    </div>
-                   <p className="text-[11px] font-bold text-primary">Add Row</p>
-                </Card>
+                   
+                   <div className="grid grid-cols-3 gap-2">
+                    <button
+                      onClick={() => navigate('/all-pending-orders')} 
+                      className="flex flex-col items-center justify-center bg-white p-3 rounded-xl shadow-[0_1px_4px_rgb(0,0,0,0.02)] border border-[#e2e8f0]/60 hover:bg-yellow-50/50 hover:border-yellow-200 transition-all active:scale-95"
+                    >
+                      <div className="w-10 h-10 rounded-full bg-yellow-100/80 text-yellow-600 flex items-center justify-center mb-2">
+                        <Clock className="w-4 h-4" strokeWidth={2.5} />
+                      </div>
+                      <span className="text-[10px] font-bold text-slate-700 leading-tight">Pending</span>
+                    </button>
+                    
+                    <button 
+                      onClick={() => navigate('/all-confirmed-orders')}
+                      className="flex flex-col items-center justify-center bg-white p-3 rounded-xl shadow-[0_1px_4px_rgb(0,0,0,0.02)] border border-[#e2e8f0]/60 hover:bg-green-50/50 hover:border-green-200 transition-all active:scale-95"
+                    >
+                      <div className="w-10 h-10 rounded-full bg-green-100/80 text-green-600 flex items-center justify-center mb-2">
+                        <CheckCircle2 className="w-4 h-4" strokeWidth={2.5} />
+                      </div>
+                      <span className="text-[10px] font-bold text-slate-700 text-center leading-tight">Confirm</span>
+                    </button>
+                    
+                    <button 
+                      onClick={() => navigate('/cancelled-orders')}
+                      className="flex flex-col items-center justify-center bg-white p-3 rounded-xl shadow-[0_1px_4px_rgb(0,0,0,0.02)] border border-[#e2e8f0]/60 hover:bg-red-50/50 hover:border-red-200 transition-all active:scale-95"
+                    >
+                      <div className="w-10 h-10 rounded-full bg-red-100/80 text-red-600 flex items-center justify-center mb-2">
+                        <Ban className="w-4 h-4" strokeWidth={2.5} />
+                      </div>
+                      <span className="text-[10px] font-bold text-slate-700 text-center leading-tight">Cancel</span>
+                    </button>
+                  </div>
+                </div>
               </div>
-
-              <div className="flex items-center justify-between mb-3 mt-4">
-                <h3 className="text-sm font-bold text-text-main">Recent Activity</h3>
-              </div>
-
-              <Card className="!p-3 !rounded-xl mb-4">
-                  {[1, 2, 3].map((_, i) => (
-                    <div key={i} className={`flex items-center gap-2.5 ${i !== 2 ? 'border-b border-ui-border/50 pb-2.5 mb-2.5' : ''}`}>
-                       <div className="w-8 h-8 rounded-lg bg-bg-base flex items-center justify-center shrink-0">
-                          <div className="w-1.5 h-1.5 rounded-full bg-success"></div>
-                       </div>
-                       <div className="flex-1 min-w-0">
-                          <p className="text-[11px] font-bold text-text-main truncate">Order #INV-459{i}</p>
-                          <p className="text-[9px] text-text-muted font-medium mt-0.5 truncate">Completed</p>
-                       </div>
-                       <div className="text-right shrink-0">
-                          <p className="text-[11px] font-bold text-primary">+$124.50</p>
-                          <p className="text-[9px] text-text-muted font-medium mt-0.5">2m ago</p>
-                       </div>
-                    </div>
-                  ))}
-              </Card>
             </>
           ) : (
              <div className="flex flex-col items-center justify-center h-full text-text-muted">

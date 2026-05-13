@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Search, X, Loader2, Package } from 'lucide-react';
+import { Search, X, Loader2, Package, AlertCircle, CheckCircle2, Circle, Tag } from 'lucide-react';
 import { useDebounce } from '../hooks/useDebounce';
 import { searchItems, Item } from '../api_items';
 
@@ -27,22 +27,103 @@ export function ItemSearch({
   const wrapperRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
+  /**
+   * Get stock status based on quantity
+   */
+  const getStockStatus = (stock: number | null | undefined): { 
+    label: string; 
+    color: string; 
+    bgColor: string;
+    icon: React.ReactNode;
+  } => {
+    // Handle null, undefined, or 0 stock
+    if (stock === null || stock === undefined || stock === 0) {
+      return {
+        label: 'No Stock',
+        color: 'text-red-600',
+        bgColor: 'bg-red-50 border-red-200',
+        icon: <AlertCircle className="w-3 h-3" />
+      };
+    }
+    
+    // Low stock (1-30)
+    if (stock <= 30) {
+      return {
+        label: 'Low Stock',
+        color: 'text-amber-600',
+        bgColor: 'bg-amber-50 border-amber-200',
+        icon: <Circle className="w-3 h-3" />
+      };
+    }
+    
+    // Medium stock (31-100)
+    if (stock <= 100) {
+      return {
+        label: 'In Stock',
+        color: 'text-blue-600',
+        bgColor: 'bg-blue-50 border-blue-200',
+        icon: <Circle className="w-3 h-3" />
+      };
+    }
+    
+    // Full stock (>100)
+    return {
+      label: 'Full Stock',
+      color: 'text-green-600',
+      bgColor: 'bg-green-50 border-green-200',
+      icon: <CheckCircle2 className="w-3 h-3" />
+    };
+  };
+
+  /**
+   * Format discount amount with safety check
+   */
+  const formatDiscount = (discAmt: number | null | undefined): string | null => {
+    if (discAmt === null || discAmt === undefined || discAmt === 0) {
+      return null;
+    }
+    return `৳${discAmt.toFixed(2)}`;
+  };
+
+  /**
+   * Format minimum discount quantity with safety check
+   */
+  const formatMinDiscQty = (minQty: number | null | undefined): string | null => {
+    if (minQty === null || minQty === undefined || minQty === 0) {
+      return null;
+    }
+    return `Min ${minQty}`;
+  };
+
+  /**
+   * Get discount info display
+   */
+  const getDiscountInfo = (item: Item): string | null => {
+    const discAmt = formatDiscount(item.disc_amt);
+    const minQty = formatMinDiscQty(item.min_disc_qty);
+    
+    if (discAmt && minQty) {
+      return `${discAmt} (${minQty})`;
+    } else if (discAmt) {
+      return discAmt;
+    } else if (minQty) {
+      return minQty;
+    }
+    return null;
+  };
+
   // Sync with controlled value
   useEffect(() => {
     if (value) {
       setQuery(`${value.item_id} - ${value.item_name}`);
-    } else if (query && !isOpen) {
-      // Don't clear query if we're just typing and haven't selected anything yet
     }
-  }, [value, isOpen]);
+  }, [value]);
 
   // Click outside listener
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (wrapperRef.current && !wrapperRef.current.contains(event.target as Node)) {
         setIsOpen(false);
-        // If no item is selected and we click away, clear or keep?
-        // Let's keep the text, just close the dropdown
       }
     }
     document.addEventListener('mousedown', handleClickOutside);
@@ -139,7 +220,7 @@ export function ItemSearch({
       </div>
 
       {isOpen && query.trim().length > 0 && (
-        <div className="absolute mt-1.5 w-full bg-white rounded-lg shadow-lg shadow-black/5 border border-ui-border/50 overflow-hidden z-50 max-h-[250px] overflow-y-auto animate-in fade-in slide-in-from-top-2 duration-200">
+        <div className="absolute mt-1.5 w-full bg-white rounded-lg shadow-lg shadow-black/5 border border-ui-border/50 overflow-hidden z-50 max-h-[280px] overflow-y-auto animate-in fade-in slide-in-from-top-2 duration-200">
           {isLoading && results.length === 0 ? (
              <div className="p-4 flex flex-col items-center justify-center text-text-muted">
                 <Loader2 className="w-5 h-5 text-primary animate-spin mb-2" />
@@ -147,47 +228,64 @@ export function ItemSearch({
              </div>
           ) : results.length > 0 ? (
             <ul className="py-1.5">
-              {results.map((item, index) => (
-                <li key={item.item_id || index}>
-                  <button
-                    type="button"
-                    className="w-full text-left px-3 py-2 hover:bg-primary/5 focus:bg-primary/5 focus:outline-none transition-colors border-b border-ui-border/30 last:border-0"
-                    onClick={() => {
-                      onChange(item);
-                      setQuery(`${item.item_id} - ${item.item_name}`);
-                      setIsOpen(false);
-                      setResults([]);
-                    }}
-                  >
-                    <div className="flex items-start gap-2.5">
-                      <div className="w-7 h-7 rounded-lg bg-primary/10 flex items-center justify-center shrink-0 text-primary mt-0.5">
-                        <Package className="w-3.5 h-3.5" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex justify-between items-start mb-0.5">
-                          <div className="flex items-center gap-1.5 min-w-0 pr-2">
-                             <span className="inline-flex px-1.5 py-0.5 rounded text-[8px] font-bold bg-gray-100 border border-gray-200 text-text-secondary shrink-0">
-                               {item.item_id}
-                             </span>
-                             <p className="text-[12px] font-bold text-text-main truncate mt-0.5">
-                               {item.item_name}
-                             </p>
+              {results.map((item, index) => {
+                const stockStatus = getStockStatus(item.stock);
+                const discountInfo = getDiscountInfo(item);
+                
+                return (
+                  <li key={item.item_id || index}>
+                    <button
+                      type="button"
+                      className="w-full text-left px-3 py-2 hover:bg-primary/5 focus:bg-primary/5 focus:outline-none transition-colors border-b border-ui-border/30 last:border-0"
+                      onClick={() => {
+                        onChange(item);
+                        setQuery(`${item.item_id} - ${item.item_name}`);
+                        setIsOpen(false);
+                        setResults([]);
+                      }}
+                    >
+                      <div className="flex items-start gap-2.5">
+                        <div className="w-7 h-7 rounded-lg bg-primary/10 flex items-center justify-center shrink-0 text-primary mt-0.5">
+                          <Package className="w-3.5 h-3.5" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          {/* Row 1: Item ID, Name, Price */}
+                          <div className="flex justify-between items-start mb-1">
+                            <div className="flex items-center gap-1.5 min-w-0 pr-2">
+                              <span className="inline-flex px-1.5 py-0.5 rounded text-[8px] font-bold bg-gray-100 border border-gray-200 text-text-secondary shrink-0">
+                                {item.item_id}
+                              </span>
+                              <p className="text-[12px] font-bold text-text-main truncate">
+                                {item.item_name}
+                              </p>
+                            </div>
+                            <span className="inline-flex px-1.5 py-0.5 rounded text-[8px] font-bold bg-green-100 border border-green-200 text-green-700 shrink-0">
+                              ৳{item.std_price}
+                            </span>
                           </div>
-                          <span className="inline-flex px-1.5 py-0.5 rounded text-[8px] font-bold bg-green-100 border border-green-200 text-green-700 shrink-0">
-                            ৳{item.std_price}
-                          </span>
-                        </div>
-                        <div className="flex justify-between items-center text-[10px] text-text-muted mt-0.5">
-                           <span>{item.item_group}</span>
-                           <span className={item.stock > 0 ? 'text-green-600' : 'text-red-500'}>
-                              Stock: {item.stock}
-                           </span>
+                          
+                          {/* Row 2: Group, Discount Info, Stock Status */}
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="text-[10px] text-text-muted">{item.item_group}</span>
+                            
+                            {discountInfo && (
+                              <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[8px] font-bold bg-purple-100 border border-purple-200 text-purple-700">
+                                <Tag className="w-2.5 h-2.5" />
+                                {discountInfo}
+                              </span>
+                            )}
+                            
+                            <span className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[8px] font-bold border ${stockStatus.color} ${stockStatus.bgColor}`}>
+                              {stockStatus.icon}
+                              {stockStatus.label}
+                            </span>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  </button>
-                </li>
-              ))}
+                    </button>
+                  </li>
+                );
+              })}
             </ul>
           ) : query.trim().length < 2 ? (
             <div className="p-5 text-center text-text-muted">
