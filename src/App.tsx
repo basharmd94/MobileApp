@@ -3,7 +3,6 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import Login from './pages/Login';
 import Home from './pages/Home';
 import Profile from './pages/Profile';
-import BusinessSelect from './pages/BusinessSelect';
 import OrderPage from './pages/OrderPage';
 import OrderHistory from './pages/OrderHistory';
 import RecVoucher from './pages/RecVoucher';
@@ -37,22 +36,7 @@ export default function App() {
         } />
         <Route path="/add" element={
           <ProtectedRoute>
-            <BusinessSelect />
-          </ProtectedRoute>
-        } />
-        <Route path="/hmbr" element={
-          <ProtectedRoute>
-            <OrderPage businessId="hmbr" />
-          </ProtectedRoute>
-        } />
-        <Route path="/gi" element={
-          <ProtectedRoute>
-            <OrderPage businessId="gi" />
-          </ProtectedRoute>
-        } />
-        <Route path="/zepto" element={
-          <ProtectedRoute>
-            <OrderPage businessId="zepto" />
+            <OrderPage />
           </ProtectedRoute>
         } />
         <Route path="/all-pending-orders" element={

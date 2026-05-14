@@ -5,12 +5,12 @@ import { Customer } from '../api_customers';
 import { Item } from '../api_items';
 import { Card, Button, CustomerSearch, ItemSearch } from '../components';
 import { useCurrentUser } from '../hooks/useCurrentUser';
-import { CartItemPayload, OrderPayload } from '../types/order';
+import { OrderPayload } from '../types/order';
 import Header from '../components/ui/Header';
+import BusinessTabs from '../components/BusinessTabs';
 
 /**
  * Configuration for each business entity.
- * Only these 3 values differ between what used to be GI.tsx, HMBR.tsx, Zepto.tsx.
  */
 interface OrderPageConfig {
   zid: string;
@@ -19,47 +19,71 @@ interface OrderPageConfig {
 }
 
 const BUSINESS_CONFIG: Record<string, OrderPageConfig> = {
-  gi:    { zid: '100000', title: 'GI Order',    storageKey: 'gi_carts' },
-  hmbr:  { zid: '100001', title: 'HMBR Order',  storageKey: 'hmbr_carts' },
-  zepto: { zid: '100005', title: 'Zepto Order', storageKey: 'zepto_carts' },
+  '100001': { zid: '100001', title: 'HMBR Order',  storageKey: 'hmbr_carts' },
+  '100000': { zid: '100000', title: 'GI Order',    storageKey: 'gi_carts' },
+  '100005': { zid: '100005', title: 'Zepto Order', storageKey: 'zepto_carts' },
 };
 
-interface OrderPageProps {
-  businessId: string; // 'gi' | 'hmbr' | 'zepto'
-}
-
 /**
- * Unified order page that replaces GI.tsx, HMBR.tsx, and Zepto.tsx.
- * All three were 99% identical — only zid, title, and localStorage key differed.
+ * Unified order page with business tabs.
+ * Switching tabs changes the active zid — CustomerSearch and ItemSearch
+ * automatically fetch from the selected business's API.
+ * Each tab maintains its own independent cart in localStorage.
  */
-export default function OrderPage({ businessId }: OrderPageProps) {
-  const config = BUSINESS_CONFIG[businessId];
-  if (!config) {
-    throw new Error(`Unknown businessId: ${businessId}`);
-  }
-
-  const { zid, title, storageKey } = config;
-
+export default function OrderPage() {
   const navigate = useNavigate();
   const { employeeId } = useCurrentUser();
+
+  // Active business tab (zid)
+  const [activeTab, setActiveTab] = useState<string>('100001');
+  const config = BUSINESS_CONFIG[activeTab];
+  const { zid, title, storageKey } = config;
+
+  // Form state — reset when switching tabs
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [selectedItem, setSelectedItem] = useState<Item | null>(null);
   const [quantity, setQuantity] = useState<number | ''>('');
-  const [itemSearchKey, setItemSearchKey] = useState<number>(0);
   const quantityInputRef = useRef<HTMLInputElement>(null);
-  
+
+  // Cart state — each tab has its own cart in localStorage
+  const [carts, setCarts] = useState<{ [xcus: string]: OrderPayload }>(() => {
+    const saved = localStorage.getItem(storageKey);
+    return saved ? JSON.parse(saved) : {};
+  });
+
+  // When switching tabs: load that tab's cart from localStorage and reset form
+  const handleTabChange = (tabId: string) => {
+    // Save current cart before switching
+    localStorage.setItem(storageKey, JSON.stringify(carts));
+    
+    // Switch tab
+    setActiveTab(tabId);
+    
+    // Reset form selections (customer/item are business-specific)
+    setCustomer(null);
+    setSelectedItem(null);
+    setQuantity('');
+
+    // Load the new tab's cart
+    const newConfig = BUSINESS_CONFIG[tabId];
+    const saved = localStorage.getItem(newConfig.storageKey);
+    setCarts(saved ? JSON.parse(saved) : {});
+  };
+
+  // Auto-focus quantity input when item is selected
   useEffect(() => {
     if (selectedItem && quantityInputRef.current) {
       quantityInputRef.current.focus();
     }
   }, [selectedItem]);
 
-  const [carts, setCarts] = useState<{ [xcus: string]: OrderPayload }>(() => {
-    const saved = localStorage.getItem(storageKey);
-    return saved ? JSON.parse(saved) : {};
-  });
-
+  // Persist cart to localStorage on changes
+  const isInitialMount = useRef(true);
   useEffect(() => {
+    if (isInitialMount.current) {
+      isInitialMount.current = false;
+      return;
+    }
     localStorage.setItem(storageKey, JSON.stringify(carts));
   }, [carts, storageKey]);
 
@@ -109,7 +133,6 @@ export default function OrderPage({ businessId }: OrderPageProps) {
     
     setSelectedItem(null);
     setQuantity('');
-    setItemSearchKey(prev => prev + 1);
   };
 
   const handleUpdateQuantity = (itemCode: string, delta: number) => {
@@ -122,22 +145,12 @@ export default function OrderPage({ businessId }: OrderPageProps) {
       const newItems = order.items.map(i => {
         if (i.xitem === itemCode) {
           const newQty = Math.max(1, i.xqty + delta);
-          return {
-            ...i,
-            xqty: newQty,
-            xlinetotal: newQty * i.xprice
-          };
+          return { ...i, xqty: newQty, xlinetotal: newQty * i.xprice };
         }
         return i;
       });
       
-      return {
-        ...prev,
-        [customerCode]: {
-          ...order,
-          items: newItems
-        }
-      };
+      return { ...prev, [customerCode]: { ...order, items: newItems } };
     });
   };
 
@@ -156,13 +169,7 @@ export default function OrderPage({ businessId }: OrderPageProps) {
         return newCarts;
       }
       
-      return {
-        ...prev,
-        [customerCode]: {
-          ...order,
-          items: newItems
-        }
-      };
+      return { ...prev, [customerCode]: { ...order, items: newItems } };
     });
   };
 
@@ -203,7 +210,11 @@ export default function OrderPage({ businessId }: OrderPageProps) {
 
   return (
     <div className="h-[100dvh] bg-bg-base flex flex-col relative max-w-md mx-auto shadow-2xl overflow-hidden md:max-w-full">
-      <Header title={title} bgColor="bg-bg-card" />
+      <Header title={title} bgColor="bg-bg-card">
+        <div className="mt-3">
+          <BusinessTabs activeTab={activeTab} onChange={handleTabChange} />
+        </div>
+      </Header>
 
       <main className="flex-1 p-3 overflow-hidden flex flex-col min-h-0">
         <div className="space-y-3 max-w-3xl mx-auto w-full flex-1 flex flex-col min-h-0">
