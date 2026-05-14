@@ -1,137 +1,42 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getCurrentUser, logout } from '../api_users';
-import { Loader2, LogOut, User, BarChart3, Send, CheckCircle2, Minus, Trash2, X, Plus } from 'lucide-react';
+import { Loader2, Send, CheckCircle2, Minus, Trash2, Plus } from 'lucide-react';
+import { BarChart3 } from 'lucide-react';
 import { Card, Button, ConfirmModal } from '../components';
-import { sendBulkOrders } from '../api_send_orders';
 import { DASHBOARD_ACTIONS } from '../components/dashboard/dashboard-actions';
 import ActionGrid from '../components/dashboard/ActionGrid';
 import MobileBottomNav from '../components/navigation/MobileBottomNav';
 import MobileTopBar from '../components/navigation/MobileTopBar';
+import Toast from '../components/ui/Toast';
+import FullPageLoader from '../components/FullPageLoader';
+import { useCurrentUser } from '../hooks/useCurrentUser';
+import { usePendingOrders } from '../hooks/usePendingOrders';
+import { getBusinessName, getBusinessBadgeColor } from '../utils/business';
 
 export default function Home() {
-  const [user, setUser] = useState<any>(null);
-  const [initialLoading, setInitialLoading] = useState(true);
+  const { user, loading: initialLoading, handleLogout } = useCurrentUser();
+  const {
+    pendingOrders, isSending, loadOrders,
+    updateQuantity, removeItem, sendSingleOrder, sendAllOrders,
+    errorToast, successToast,
+  } = usePendingOrders();
+
   const [activeTab, setActiveTab] = useState('dashboard');
   const navigate = useNavigate();
 
-  // For outstanding offline orders state
-  const [pendingOrders, setPendingOrders] = useState<any[]>([]);
-  const [isSending, setIsSending] = useState(false);
-  
   // Confirmation modal state
   const [confirmModal, setConfirmModal] = useState<{isOpen: boolean, type: 'single' | 'all', index: number | null}>({isOpen: false, type: 'all', index: null});
-  const [errorToast, setErrorToast] = useState<string | null>(null);
-  const [successToast, setSuccessToast] = useState<string | null>(null);
 
-  const getBusinessName = (zid: number | string) => {
-    const map: Record<string, string> = {
-      '100000': 'GI',
-      '100001': 'HMBR',
-      '100005': 'Zepto',
-    };
-    return map[String(zid)] || 'Unknown';
-  };
-
-  const getBusinessBadgeColor = (zid: number | string) => {
-    switch (String(zid)) {
-      case '100000': return 'text-emerald-800 bg-emerald-100/80 border-emerald-200';
-      case '100001': return 'text-blue-800 bg-blue-100/80 border-blue-200';
-      case '100005': return 'text-purple-800 bg-purple-100/80 border-purple-200';
-      default: return 'text-orange-800 bg-orange-100/80 border-orange-200';
-    }
-  };
-
-  const getCurrentLocation = (): Promise<{lat: number, lng: number}> => {
-    return new Promise((resolve) => {
-      if (!navigator.geolocation) {
-        resolve({ lat: 0, lng: 0 });
-      } else {
-        navigator.geolocation.getCurrentPosition(
-          (position) => {
-            resolve({
-              lat: position.coords.latitude,
-              lng: position.coords.longitude
-            });
-          },
-          (error) => {
-            console.warn("Geolocation error, falling back to 0,0:", error);
-            resolve({ lat: 0, lng: 0 });
-          },
-          { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
-        );
-      }
-    });
-  };
-
-  useEffect(() => {
-    const fetchUser = async () => {
-      try {
-        const userData = await getCurrentUser();
-        setUser(userData);
-      } catch (error) {
-        console.error('Failed to fetch user:', error);
-      } finally {
-        setInitialLoading(false);
-      }
-    };
-
-    fetchUser();
-  }, []);
-
-  // Fetch pending orders on mount and when tab changes
-  useEffect(() => {
-    const savedOrders = localStorage.getItem('hmbr_pending_orders');
-    if (savedOrders) {
-      const parsed = JSON.parse(savedOrders);
-      setPendingOrders(parsed.orders || []);
-    } else {
-      setPendingOrders([]);
-    }
-  }, [activeTab]);
-
+  // Reload pending orders when switching to send_orders tab
   const handleTabChange = (tab: string) => {
     if (tab === 'profile') {
       navigate('/profile');
     } else {
+      if (tab === 'send_orders') {
+        loadOrders();
+      }
       setActiveTab(tab);
     }
-  };
-
-  const handleUpdatePendingItemQuantity = (orderIndex: number, itemIndex: number, delta: number) => {
-    const newOrders = [...pendingOrders];
-    const order = { ...newOrders[orderIndex] };
-    const items = [...order.items];
-    const item = { ...items[itemIndex] };
-    
-    const newQty = Math.max(1, item.xqty + delta);
-    item.xqty = newQty;
-    item.xlinetotal = newQty * item.xprice;
-    
-    items[itemIndex] = item;
-    order.items = items;
-    newOrders[orderIndex] = order;
-    
-    setPendingOrders(newOrders);
-    localStorage.setItem('hmbr_pending_orders', JSON.stringify({ orders: newOrders }));
-  };
-
-  const handleRemovePendingItem = (orderIndex: number, itemIndex: number) => {
-    const newOrders = [...pendingOrders];
-    let order = { ...newOrders[orderIndex] };
-    let items = [...order.items];
-    
-    items.splice(itemIndex, 1);
-    
-    if (items.length === 0) {
-      newOrders.splice(orderIndex, 1);
-    } else {
-      order.items = items;
-      newOrders[orderIndex] = order;
-    }
-    
-    setPendingOrders(newOrders);
-    localStorage.setItem('hmbr_pending_orders', JSON.stringify({ orders: newOrders }));
   };
 
   const handleSendSingleOrder = (index: number) => {
@@ -140,40 +45,11 @@ export default function Home() {
 
   const executeSendSingleOrder = async () => {
     if (confirmModal.index === null) return;
-    setIsSending(true);
     setConfirmModal({...confirmModal, isOpen: false});
     
-    try {
-      const loc = await getCurrentLocation();
-      const orderToSend = JSON.parse(JSON.stringify(pendingOrders[confirmModal.index]));
-      
-      orderToSend.items = orderToSend.items.map((item: any) => ({
-        ...item,
-        xlat: Number(loc.lat.toFixed(6)),
-        xlong: Number(loc.lng.toFixed(6))
-      }));
-
-      const response = await sendBulkOrders([orderToSend]);
-      
-      const newOrders = [...pendingOrders];
-      newOrders.splice(confirmModal.index, 1);
-      
-      setPendingOrders(newOrders);
-      localStorage.setItem('hmbr_pending_orders', JSON.stringify({ orders: newOrders }));
-      
-      const responseList = Array.isArray(response) ? response : (response?.data ? (Array.isArray(response.data) ? response.data : [response.data]) : [response]);
-      const invoices = responseList.map((r: any) => r?.invoiceno).filter(Boolean).join(', ');
-      setSuccessToast(`Order sent successfully! Invoice: ${invoices || 'N/A'}`);
-      setTimeout(() => setSuccessToast(null), 4000);
-      
-      if (newOrders.length === 0) {
-        setActiveTab('dashboard');
-      }
-    } catch (err: any) {
-      setErrorToast(err.message || 'Failed to send order');
-      setTimeout(() => setErrorToast(null), 3000);
-    } finally {
-      setIsSending(false);
+    const success = await sendSingleOrder(confirmModal.index);
+    if (success && pendingOrders.length <= 1) {
+      setActiveTab('dashboard');
     }
   };
 
@@ -183,55 +59,16 @@ export default function Home() {
   };
   
   const executeSendAllOrders = async () => {
-    setIsSending(true);
     setConfirmModal({...confirmModal, isOpen: false});
     
-    try {
-      const loc = await getCurrentLocation();
-      const ordersToSend = pendingOrders.map(order => ({
-        ...order,
-        items: order.items.map((item: any) => ({
-          ...item,
-          xlat: Number(loc.lat.toFixed(6)),
-          xlong: Number(loc.lng.toFixed(6))
-        }))
-      }));
-
-      const response = await sendBulkOrders(ordersToSend);
-      
-      setPendingOrders([]);
-      localStorage.setItem('hmbr_pending_orders', JSON.stringify({ orders: [] }));
-      
-      const responseList = Array.isArray(response) ? response : (response?.data ? (Array.isArray(response.data) ? response.data : [response.data]) : [response]);
-      const invoices = responseList.map((r: any) => r?.invoiceno).filter(Boolean).join(', ');
-      setSuccessToast(`Orders sent successfully! Invoices: ${invoices || 'N/A'}`);
-      setTimeout(() => setSuccessToast(null), 4000);
-      
+    const success = await sendAllOrders();
+    if (success) {
       setActiveTab('dashboard');
-    } catch (err: any) {
-      setErrorToast(err.message || 'Failed to send orders');
-      setTimeout(() => setErrorToast(null), 3000);
-    } finally {
-      setIsSending(false);
-    }
-  };
-
-  const handleLogout = async () => {
-    try {
-      await logout();
-      navigate('/login');
-    } catch (error) {
-      console.error('Logout failed:', error);
-      navigate('/login');
     }
   };
 
   if (initialLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-bg-base">
-        <Loader2 className="w-10 h-10 animate-spin text-primary" />
-      </div>
-    );
+    return <FullPageLoader />;
   }
 
   return (
@@ -289,15 +126,15 @@ export default function Home() {
                               <span className="text-[11px] font-bold text-text-main">৳{item.xlinetotal.toLocaleString()}</span>
                               <div className="flex items-center gap-1.5">
                                 <div className="flex items-center border border-ui-border rounded-lg overflow-hidden">
-                                  <button onClick={() => handleUpdatePendingItemQuantity(idx, iIdx, -1)} className="w-7 h-7 flex items-center justify-center bg-gray-50 hover:bg-gray-200 text-text-main transition-colors active:bg-gray-300">
+                                  <button onClick={() => updateQuantity(idx, iIdx, -1)} className="w-7 h-7 flex items-center justify-center bg-gray-50 hover:bg-gray-200 text-text-main transition-colors active:bg-gray-300">
                                     <Minus className="w-3.5 h-3.5" />
                                   </button>
                                   <span className="w-7 text-center text-[11px] font-bold text-text-main">{item.xqty}</span>
-                                  <button onClick={() => handleUpdatePendingItemQuantity(idx, iIdx, 1)} className="w-7 h-7 flex items-center justify-center bg-gray-50 hover:bg-gray-200 text-text-main transition-colors active:bg-gray-300">
+                                  <button onClick={() => updateQuantity(idx, iIdx, 1)} className="w-7 h-7 flex items-center justify-center bg-gray-50 hover:bg-gray-200 text-text-main transition-colors active:bg-gray-300">
                                     <Plus className="w-3.5 h-3.5" />
                                   </button>
                                 </div>
-                                <button onClick={() => handleRemovePendingItem(idx, iIdx)} className="w-7 h-7 flex items-center justify-center rounded-lg bg-red-50 text-red-500 hover:bg-red-100 transition-colors active:bg-red-200">
+                                <button onClick={() => removeItem(idx, iIdx)} className="w-7 h-7 flex items-center justify-center rounded-lg bg-red-50 text-red-500 hover:bg-red-100 transition-colors active:bg-red-200">
                                   <Trash2 className="w-3.5 h-3.5" />
                                 </button>
                               </div>
@@ -366,7 +203,7 @@ export default function Home() {
         message={
           confirmModal.type === 'all' 
             ? `Are you sure you want to send all ${pendingOrders.length} orders?` 
-            : confirmModal.index !== null 
+            : confirmModal.index !== null && pendingOrders[confirmModal.index]
               ? `Are you sure you want to send the order for ${pendingOrders[confirmModal.index].xcusname} (${pendingOrders[confirmModal.index].xcus})?` 
               : 'Are you sure you want to send this order?'
         }
@@ -375,19 +212,7 @@ export default function Home() {
         isProcessing={isSending}
       />
 
-      {errorToast && (
-        <div className="fixed top-20 left-1/2 -translate-x-1/2 w-[calc(100%-2rem)] z-[100] bg-error text-white px-4 py-3 rounded-xl shadow-lg flex items-center gap-3">
-          <X className="w-5 h-5 shrink-0" />
-          <p className="text-sm font-medium">{errorToast}</p>
-        </div>
-      )}
-
-      {successToast && (
-        <div className="fixed top-20 left-1/2 -translate-x-1/2 w-[calc(100%-2rem)] z-[100] bg-success text-white px-4 py-3 rounded-xl shadow-lg flex items-center gap-3">
-          <CheckCircle2 className="w-5 h-5 shrink-0" />
-          <p className="text-sm font-medium">{successToast}</p>
-        </div>
-      )}
+      <Toast error={errorToast} success={successToast} />
     </div>
   );
 }

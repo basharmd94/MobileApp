@@ -1,13 +1,32 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { sendBulkOrders } from '../api_send_orders';
 import { useToast } from './useToast';
+import { getCurrentLocation } from '../utils/geolocation';
 
+/**
+ * Hook to manage pending offline orders.
+ * Handles localStorage persistence, quantity updates, item removal,
+ * and sending orders (single or bulk) with geolocation.
+ */
 export function usePendingOrders() {
-  const [pendingOrders, setPendingOrders] = useState<any[]>([]);
+  const [pendingOrders, setPendingOrders] = useState<any[]>(() => {
+    // Initialize directly from localStorage to avoid the empty-state flash
+    const savedOrders = localStorage.getItem('hmbr_pending_orders');
+    if (savedOrders) {
+      try {
+        const parsed = JSON.parse(savedOrders);
+        return parsed.orders || [];
+      } catch {
+        return [];
+      }
+    }
+    return [];
+  });
   const [isSending, setIsSending] = useState(false);
-  const { showError, showSuccess } = useToast();
+  const { errorToast, successToast, showError, showSuccess } = useToast();
+  const isInitialMount = useRef(true);
 
-  // Load from localStorage
+  // Reload from localStorage (for manual refresh, e.g. tab switch)
   const loadOrders = useCallback(() => {
     const savedOrders = localStorage.getItem('hmbr_pending_orders');
     if (savedOrders) {
@@ -22,32 +41,15 @@ export function usePendingOrders() {
     }
   }, []);
 
-  // Load on mount
+  // Save to localStorage whenever orders change — but skip the initial mount
+  // to prevent overwriting real data with [] (critical with React StrictMode)
   useEffect(() => {
-    loadOrders();
-  }, [loadOrders]);
-
-  // Save to localStorage whenever orders change
-  useEffect(() => {
+    if (isInitialMount.current) {
+      isInitialMount.current = false;
+      return;
+    }
     localStorage.setItem('hmbr_pending_orders', JSON.stringify({ orders: pendingOrders }));
   }, [pendingOrders]);
-
-  const getCurrentLocation = (): Promise<{ lat: number; lng: number }> => {
-    return new Promise((resolve) => {
-      if (!navigator.geolocation) {
-        resolve({ lat: 0, lng: 0 });
-      } else {
-        navigator.geolocation.getCurrentPosition(
-          (position) => resolve({ lat: position.coords.latitude, lng: position.coords.longitude }),
-          (error) => {
-            console.warn("Geolocation error, falling back to 0,0:", error);
-            resolve({ lat: 0, lng: 0 });
-          },
-          { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
-        );
-      }
-    });
-  };
 
   const updateQuantity = (orderIndex: number, itemIndex: number, delta: number) => {
     setPendingOrders(prev => {
@@ -160,5 +162,7 @@ export function usePendingOrders() {
     removeItem,
     sendSingleOrder,
     sendAllOrders,
+    errorToast,
+    successToast,
   };
 }

@@ -1,36 +1,48 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ChevronLeft, Package, User, Trash2, Plus, Minus } from 'lucide-react';
+import { Package, Trash2, Plus, Minus } from 'lucide-react';
 import { Customer } from '../api_customers';
 import { Item } from '../api_items';
-import { getCurrentUser } from '../api_users';
 import { Card, Button, CustomerSearch, ItemSearch } from '../components';
+import { useCurrentUser } from '../hooks/useCurrentUser';
+import { CartItemPayload, OrderPayload } from '../types/order';
+import Header from '../components/ui/Header';
 
-interface CartItemPayload {
-  xdate: string;
-  xdesc: string;
-  xitem: string;
-  xlat: number;
-  xlinetotal: number;
-  xlong: number;
-  xprice: number;
-  xqty: number;
-  xroword: number;
-  xsl: string;
+/**
+ * Configuration for each business entity.
+ * Only these 3 values differ between what used to be GI.tsx, HMBR.tsx, Zepto.tsx.
+ */
+interface OrderPageConfig {
+  zid: string;
+  title: string;
+  storageKey: string;
 }
 
-interface OrderPayload {
-  items: CartItemPayload[];
-  xcus: string;
-  xcusadd: string;
-  xcusname: string;
-  zid: number;
+const BUSINESS_CONFIG: Record<string, OrderPageConfig> = {
+  gi:    { zid: '100000', title: 'GI Order',    storageKey: 'gi_carts' },
+  hmbr:  { zid: '100001', title: 'HMBR Order',  storageKey: 'hmbr_carts' },
+  zepto: { zid: '100005', title: 'Zepto Order', storageKey: 'zepto_carts' },
+};
+
+interface OrderPageProps {
+  businessId: string; // 'gi' | 'hmbr' | 'zepto'
 }
 
-export default function HMBR() {
+/**
+ * Unified order page that replaces GI.tsx, HMBR.tsx, and Zepto.tsx.
+ * All three were 99% identical — only zid, title, and localStorage key differed.
+ */
+export default function OrderPage({ businessId }: OrderPageProps) {
+  const config = BUSINESS_CONFIG[businessId];
+  if (!config) {
+    throw new Error(`Unknown businessId: ${businessId}`);
+  }
+
+  const { zid, title, storageKey } = config;
+
   const navigate = useNavigate();
+  const { employeeId } = useCurrentUser();
   const [customer, setCustomer] = useState<Customer | null>(null);
-  const [employeeId, setEmployeeId] = useState<string>('');
   const [selectedItem, setSelectedItem] = useState<Item | null>(null);
   const [quantity, setQuantity] = useState<number | ''>('');
   const [itemSearchKey, setItemSearchKey] = useState<number>(0);
@@ -43,28 +55,13 @@ export default function HMBR() {
   }, [selectedItem]);
 
   const [carts, setCarts] = useState<{ [xcus: string]: OrderPayload }>(() => {
-    const saved = localStorage.getItem('hmbr_carts');
+    const saved = localStorage.getItem(storageKey);
     return saved ? JSON.parse(saved) : {};
   });
 
   useEffect(() => {
-    const fetchUser = async () => {
-      try {
-        const userData = await getCurrentUser();
-        setEmployeeId(userData?.user_id || '');
-      } catch (error) {
-        console.error('Failed to fetch user:', error);
-      }
-    };
-    fetchUser();
-  }, []);
-
-  useEffect(() => {
-    localStorage.setItem('hmbr_carts', JSON.stringify(carts));
-  }, [carts]);
-
-  // You can set the zid here directly or fetch from user auth context
-  const zid = '100001';
+    localStorage.setItem(storageKey, JSON.stringify(carts));
+  }, [carts, storageKey]);
 
   const handleAddToCart = () => {
     if (!customer || !selectedItem || !quantity || Number(quantity) < 1) return;
@@ -206,16 +203,7 @@ export default function HMBR() {
 
   return (
     <div className="h-[100dvh] bg-bg-base flex flex-col relative max-w-md mx-auto shadow-2xl overflow-hidden md:max-w-full">
-      {/* App Bar */}
-      <header className="flex items-center px-4 pt-8 pb-3 bg-bg-card shadow-[0_2px_10px_rgb(0,0,0,0.02)] z-10 rounded-b-2xl shrink-0">
-        <button 
-          onClick={() => navigate(-1)}
-          className="w-8 h-8 flex items-center justify-center rounded-full bg-bg-base text-text-secondary active:scale-95 transition-transform"
-        >
-          <ChevronLeft className="w-5 h-5" />
-        </button>
-        <h1 className="flex-1 text-center text-[12px] font-bold text-text-main pr-8">HMBR Order</h1>
-      </header>
+      <Header title={title} bgColor="bg-bg-card" />
 
       <main className="flex-1 p-3 overflow-hidden flex flex-col min-h-0">
         <div className="space-y-3 max-w-3xl mx-auto w-full flex-1 flex flex-col min-h-0">
@@ -235,7 +223,6 @@ export default function HMBR() {
             <div className="flex flex-col gap-2">
               <div className="w-full">
                 <ItemSearch 
-                  key={`item-search-${itemSearchKey}`}
                   zid={zid}
                   value={selectedItem}
                   onChange={setSelectedItem}

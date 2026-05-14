@@ -4,13 +4,10 @@ import Login from './pages/Login';
 import Home from './pages/Home';
 import Profile from './pages/Profile';
 import BusinessSelect from './pages/BusinessSelect';
-import HMBR from './pages/HMBR';
-import GI from './pages/GI';
-import Zepto from './pages/Zepto';
+import OrderPage from './pages/OrderPage';
 import OrderHistory from './pages/OrderHistory';
 import RecVoucher from './pages/RecVoucher';
 import Feedback from './pages/Feedback';
-import CancelledOrders from './pages/CancelledOrders';
 import DeliveryOrders from './pages/DeliveryOrders';
 import PayDate from './pages/PayDate';
 import SalesReturn from './pages/SalesReturn';
@@ -45,17 +42,17 @@ export default function App() {
         } />
         <Route path="/hmbr" element={
           <ProtectedRoute>
-            <HMBR />
+            <OrderPage businessId="hmbr" />
           </ProtectedRoute>
         } />
         <Route path="/gi" element={
           <ProtectedRoute>
-            <GI />
+            <OrderPage businessId="gi" />
           </ProtectedRoute>
         } />
         <Route path="/zepto" element={
           <ProtectedRoute>
-            <Zepto />
+            <OrderPage businessId="zepto" />
           </ProtectedRoute>
         } />
         <Route path="/all-pending-orders" element={

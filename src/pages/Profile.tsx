@@ -1,39 +1,14 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Loader2, LogOut, User } from 'lucide-react';
+import { LogOut, User } from 'lucide-react';
 import { Card } from '../components';
-import { getCurrentUser, logout } from '../api_users';
+import { useCurrentUser } from '../hooks/useCurrentUser';
+import FullPageLoader from '../components/FullPageLoader';
 import MobileBottomNav from '../components/navigation/MobileBottomNav';
 
 export default function Profile() {
-  const [user, setUser] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
+  const { user, loading, handleLogout } = useCurrentUser();
   const navigate = useNavigate();
-
-  useEffect(() => {
-    const fetchUser = async () => {
-      try {
-        const userData = await getCurrentUser();
-        setUser(userData);
-      } catch (error) {
-        console.error('Failed to fetch user:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchUser();
-  }, []);
-
-  const handleLogout = async () => {
-    try {
-      await logout();
-      navigate('/login');
-    } catch (error) {
-      console.error('Logout failed:', error);
-      navigate('/login');
-    }
-  };
 
   const handleTabChange = (tab: string) => {
     if (tab === 'dashboard') {
@@ -46,11 +21,7 @@ export default function Profile() {
   };
 
   if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-bg-base">
-        <Loader2 className="w-10 h-10 animate-spin text-primary" />
-      </div>
-    );
+    return <FullPageLoader />;
   }
 
   return (
