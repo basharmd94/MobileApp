@@ -92,7 +92,7 @@ export default function DeliveryOrders() {
   };
 
   return (
-    <div className="h-[100dvh] bg-bg-base flex flex-col relative max-w-md mx-auto shadow-2xl overflow-hidden md:max-w-full">
+    <div className="page-root">
       <Header title="Delivery Orders">
         <div className="mt-4">
           <BusinessTabs activeTab={activeTab} onChange={setActiveTab} className="mb-3" />
@@ -139,7 +139,8 @@ export default function DeliveryOrders() {
         )}
       </Header>
 
-      <main className="flex-1 p-4 overflow-y-auto w-full md:max-w-3xl md:mx-auto pb-24">
+      <main className="flex-1 overflow-y-auto pb-24">
+        <div className="page-content px-4 py-4">
         {loading && orders.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full">
             <Loader2 className="w-8 h-8 animate-spin text-orange-500 opacity-50 mb-4" />
@@ -151,7 +152,7 @@ export default function DeliveryOrders() {
             <p className="text-[12px] font-bold text-text-muted">No delivery orders found.</p>
           </div>
         ) : (
-          <div className="space-y-4">
+          <div className="card-grid">
             {orders.map((order, i) => {
               const isExpanded = expandedOrders[order.xdornum];
               const statusBadge = getStatusBadge(order.xstatusdor);
@@ -222,6 +223,7 @@ export default function DeliveryOrders() {
             )}
           </div>
         )}
+        </div>
       </main>
     </div>
   );
