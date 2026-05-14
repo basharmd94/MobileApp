@@ -96,3 +96,25 @@ export const getDeliveryOrderDetail = async (xdornum: string, zid: string): Prom
   const response = await api.get(`/order/get-delivery-order/${xdornum}?zid=${zid}`);
   return response.data;
 };
+
+export interface UpdateDeliveryDatesPayload {
+  delivery_date: string;
+  payment_date: string;
+}
+
+export interface UpdateDeliveryDatesResponse {
+  success: boolean;
+  message: string;
+  xdornum: string;
+  delivery_date: string;
+  payment_date: string;
+}
+
+export const updateDeliveryDates = async (
+  zid: string,
+  xdornum: string,
+  data: UpdateDeliveryDatesPayload
+): Promise<UpdateDeliveryDatesResponse> => {
+  const response = await api.put(`/order/delivery-date-update/${zid}/${xdornum}`, data);
+  return response.data;
+};

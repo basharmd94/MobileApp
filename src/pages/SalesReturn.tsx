@@ -114,7 +114,7 @@ export default function SalesReturn() {
       };
       const response = await createSalesReturn(payload);
       showSuccess(response.message || 'Sales return created successfully');
-      setTimeout(() => navigate(-1), 2000);
+      setTimeout(() => navigate('/return-list'), 2000);
     } catch (error: any) {
       console.error('Return failed:', error);
       showError(error.message || 'Failed to create sales return');

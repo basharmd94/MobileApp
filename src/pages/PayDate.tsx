@@ -2,8 +2,10 @@ import React, { useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { User, Hash, Calendar, TrendingUp, Truck, CreditCard } from 'lucide-react';
 import Header from '../components/ui/Header';
-import { Button } from '../components/ui';
+import { Button, ConfirmModal } from '../components';
+import Toast from '../components/ui/Toast';
 import { getBusinessName } from '../utils/business';
+import { updateDeliveryDates } from '../api_delivery_orders';
 
 export default function PayDate() {
   const location = useLocation();
@@ -12,18 +14,49 @@ export default function PayDate() {
 
   const [deliveryDate, setDeliveryDate] = useState(order?.xdate || '');
   const [payDate, setPayDate] = useState(order?.xdatepay || '');
+  
+  // If the order already has a payDate from the DB, it's considered already updated
+  const isAlreadyUpdated = !!order?.xdatepay;
+  
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
+  const [errorToast, setErrorToast] = useState<string | null>(null);
+  const [successToast, setSuccessToast] = useState<string | null>(null);
 
-  const handleUpdate = async () => {
+  const handleUpdate = () => {
+    if (!deliveryDate || !payDate) return;
+    setIsConfirmModalOpen(true);
+  };
+
+  const executeUpdate = async () => {
     if (!deliveryDate || !payDate) return;
     setIsSubmitting(true);
-    const payload = { xdornum: order.xdornum, xdate: deliveryDate, xdatepay: payDate };
-    console.log('Updating dates:', payload);
-    setTimeout(() => {
-      alert(`Dates updated successfully!\nDelivery: ${deliveryDate}\nPay: ${payDate}`);
+    setIsConfirmModalOpen(false);
+    setErrorToast(null);
+    setSuccessToast(null);
+
+    try {
+      const payload = {
+        delivery_date: deliveryDate,
+        payment_date: payDate
+      };
+      
+      const res = await updateDeliveryDates(order.zid.toString(), order.xdornum, payload);
+      
+      if (res.success) {
+        setSuccessToast(res.message || 'Dates updated successfully');
+        setTimeout(() => {
+          navigate(-1);
+        }, 1500);
+      } else {
+        setErrorToast(res.message || 'Failed to update dates');
+      }
+    } catch (err: any) {
+      console.error('Error updating dates:', err);
+      setErrorToast(err.response?.data?.detail || err.message || 'An error occurred while updating');
+    } finally {
       setIsSubmitting(false);
-      navigate(-1);
-    }, 500);
+    }
   };
 
   if (!order) {
@@ -97,8 +130,8 @@ export default function PayDate() {
                 <Truck className="w-3.5 h-3.5 text-teal-500" />Delivery Date <span className="text-error">*</span>
               </label>
               <div className="relative">
-                <input type="date" value={deliveryDate} onChange={(e) => setDeliveryDate(e.target.value)}
-                  className="w-full h-[42px] px-3 py-2 text-[13px] bg-bg-base border border-ui-border rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-200 focus:border-teal-300 transition-all text-text-main appearance-none"
+                <input type="date" value={deliveryDate} onChange={(e) => setDeliveryDate(e.target.value)} disabled={isAlreadyUpdated}
+                  className="w-full h-[42px] px-3 py-2 text-[13px] bg-bg-base border border-ui-border rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-200 focus:border-teal-300 transition-all text-text-main appearance-none disabled:opacity-60"
                   style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2314B8A6' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='4' width='18' height='18' rx='2' ry='2'%3E%3C/rect%3E%3Cline x1='16' y1='2' x2='16' y2='6'%3E%3C/line%3E%3Cline x1='8' y1='2' x2='8' y2='6'%3E%3C/line%3E%3Cline x1='3' y1='10' x2='21' y2='10'%3E%3C/line%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 12px center', paddingRight: '40px' }} />
               </div>
             </div>
@@ -107,8 +140,8 @@ export default function PayDate() {
                 <CreditCard className="w-3.5 h-3.5 text-purple-500" />Pay Date <span className="text-error">*</span>
               </label>
               <div className="relative">
-                <input type="date" value={payDate} onChange={(e) => setPayDate(e.target.value)}
-                  className="w-full h-[42px] px-3 py-2 text-[13px] bg-bg-base border border-ui-border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-200 focus:border-purple-300 transition-all text-text-main appearance-none"
+                <input type="date" value={payDate} onChange={(e) => setPayDate(e.target.value)} disabled={isAlreadyUpdated}
+                  className="w-full h-[42px] px-3 py-2 text-[13px] bg-bg-base border border-ui-border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-200 focus:border-purple-300 transition-all text-text-main appearance-none disabled:opacity-60"
                   style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%238B5CF6' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='4' width='18' height='18' rx='2' ry='2'%3E%3C/rect%3E%3Cline x1='16' y1='2' x2='16' y2='6'%3E%3C/line%3E%3Cline x1='8' y1='2' x2='8' y2='6'%3E%3C/line%3E%3Cline x1='3' y1='10' x2='21' y2='10'%3E%3C/line%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 12px center', paddingRight: '40px' }} />
               </div>
             </div>
@@ -147,10 +180,27 @@ export default function PayDate() {
       </main>
 
       <div className="absolute bottom-0 left-0 right-0 p-4 bg-bg-card border-t border-ui-border shadow-[0_-4px_10px_rgb(0,0,0,0.02)] z-10 w-full md:max-w-3xl md:mx-auto">
-        <Button variant="primary" size="lg" className="w-full shadow-lg shadow-primary/20" onClick={handleUpdate} disabled={!deliveryDate || !payDate || isSubmitting} isLoading={isSubmitting}>
-          Update Dates
+        <Button 
+          variant={isAlreadyUpdated ? "outline" : "primary"} 
+          size="lg" 
+          className={`w-full ${!isAlreadyUpdated ? 'shadow-lg shadow-primary/20' : ''}`} 
+          onClick={handleUpdate} 
+          disabled={isAlreadyUpdated || !deliveryDate || !payDate || isSubmitting} 
+          isLoading={isSubmitting}
+        >
+          {isAlreadyUpdated ? 'Dates Already Updated' : 'Update Dates'}
         </Button>
       </div>
+
+      <ConfirmModal 
+        isOpen={isConfirmModalOpen} 
+        title="Confirm Date Update" 
+        message={`Are you sure you want to update the dates for order ${order.xdornum}?`} 
+        onCancel={() => setIsConfirmModalOpen(false)} 
+        onConfirm={executeUpdate} 
+        isProcessing={isSubmitting} 
+      />
+      <Toast error={errorToast} success={successToast} />
     </div>
   );
 }

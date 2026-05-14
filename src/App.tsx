@@ -10,6 +10,7 @@ import Feedback from './pages/Feedback';
 import DeliveryOrders from './pages/DeliveryOrders';
 import PayDate from './pages/PayDate';
 import SalesReturn from './pages/SalesReturn';
+import ReturnList from './pages/ReturnList';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const token = localStorage.getItem('accessToken');
@@ -77,6 +78,11 @@ export default function App() {
         <Route path="/sales-return" element={
           <ProtectedRoute>
             <SalesReturn />
+          </ProtectedRoute>
+        } />
+        <Route path="/return-list" element={
+          <ProtectedRoute>
+            <ReturnList />
           </ProtectedRoute>
         } />
       </Routes>

@@ -48,3 +48,60 @@ export const createSalesReturn = async (payload: ReturnPayload): Promise<ReturnR
     throw new Error(errorMessage);
   }
 };
+
+export interface ReturnItem {
+  xitem: string;
+  xdesc: string;
+  xunitsel: string;
+  xqty: number;
+  xrate: number;
+  xlineamt: number;
+}
+
+export interface ReturnOrder {
+  xdate: string;
+  zid: number;
+  xcrnnum: string;
+  xcus: string;
+  xorg: string;
+  xadd1: string;
+  xstatuscrn: string;
+  xdornum: string;
+  xordernum: string;
+  xemp: string;
+  xrem: string | null;
+  xstr01: string | null;
+  items: ReturnItem[];
+}
+
+export interface ReturnsListResponse {
+  returns: ReturnOrder[];
+  count: number;
+}
+
+export interface GetReturnsParams {
+  zid: string;
+  xdate?: string;
+  xcus?: string;
+  xcrnnum?: string;
+  xdornum?: string;
+  xitem?: string;
+  limit?: number;
+  offset?: number;
+}
+
+export const getSalesReturns = async (params: GetReturnsParams): Promise<ReturnsListResponse> => {
+  const queryParams = new URLSearchParams();
+  queryParams.append('zid', params.zid);
+  
+  if (params.xdate) queryParams.append('xdate', params.xdate);
+  if (params.xcus) queryParams.append('xcus', params.xcus);
+  if (params.xcrnnum) queryParams.append('xcrnnum', params.xcrnnum);
+  if (params.xdornum) queryParams.append('xdornum', params.xdornum);
+  if (params.xitem) queryParams.append('xitem', params.xitem);
+  if (params.limit !== undefined) queryParams.append('limit', params.limit.toString());
+  if (params.offset !== undefined) queryParams.append('offset', params.offset.toString());
+
+  const response = await api.get(`/return/get-sales-returns?${queryParams.toString()}`);
+  return response.data;
+};
