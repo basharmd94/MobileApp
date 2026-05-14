@@ -2,10 +2,10 @@ import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import Login from './pages/Login';
 import Home from './pages/Home';
+import Profile from './pages/Profile';
 import BusinessSelect from './pages/BusinessSelect';
 import HMBR from './pages/HMBR';
 import GI from './pages/GI';
-
 import Zepto from './pages/Zepto';
 import OrderHistory from './pages/OrderHistory';
 import RecVoucher from './pages/RecVoucher';
@@ -31,6 +31,11 @@ export default function App() {
         <Route path="/" element={
           <ProtectedRoute>
             <Home />
+          </ProtectedRoute>
+        } />
+        <Route path="/profile" element={
+          <ProtectedRoute>
+            <Profile />
           </ProtectedRoute>
         } />
         <Route path="/add" element={

@@ -1,6 +1,10 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { ChevronLeft, Trash2, Plus, Minus, Package, User, Hash, Calendar, TrendingUp, AlertCircle } from 'lucide-react';
+import { ChevronLeft, Trash2, Plus, Minus, Package, User, Hash, Calendar, TrendingUp, AlertCircle, CheckCircle2, X } from 'lucide-react';
+import { ConfirmModal } from '../components/ConfirmModal';
+import { Button } from '../components/ui'; // Imported Button component
+import { createSalesReturn, ReturnPayload } from '../api_return';
+import { getCurrentUser } from '../api_users';
 
 export default function SalesReturn() {
   const location = useLocation();
@@ -15,7 +19,24 @@ export default function SalesReturn() {
   // Return reason state
   const [returnReason, setReturnReason] = useState('');
   const [reasonError, setReasonError] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false); // Added isSubmitting state
+  const [isSubmitting, setIsSubmitting] = useState(false); 
+  
+  const [user, setUser] = useState<any>(null);
+  const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
+  const [successToast, setSuccessToast] = useState<string | null>(null);
+  const [errorToast, setErrorToast] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchUser = async () => {
+      try {
+        const userData = await getCurrentUser();
+        setUser(userData);
+      } catch (error) {
+        console.error('Failed to fetch user:', error);
+      }
+    };
+    fetchUser();
+  }, []);
 
   const returnReasons = [
     "Damage Goods Return",
@@ -128,7 +149,7 @@ export default function SalesReturn() {
     return String(zid);
   };
 
-  const handleReturn = async () => {
+  const handleReturn = () => {
     if (returnItems.length === 0) return;
     
     // Validate return reason
@@ -137,17 +158,51 @@ export default function SalesReturn() {
       return;
     }
     
+    setIsConfirmModalOpen(true);
+  };
+
+  const executeReturn = async () => {
+    setIsConfirmModalOpen(false);
     setIsSubmitting(true);
     
-    // API Call logic to be implemented later
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      const payload: ReturnPayload = {
+        return_header: {
+          xcus: order.xcus,
+          xdate: new Date().toISOString().split('T')[0],
+          xdatecuspo: order.xdate || "",
+          xdornum: order.xdornum,
+          xemp: user?.user_id || "",
+          xordernum: order.xordernum || "",
+          xproj: order.xproj || "Normal", 
+          xreason: returnReason,
+          xsec: "Normal",
+          xstatuscrn: "1-Open",
+          xwh: order.xwh || "",
+          zid: order.zid
+        },
+        return_items: returnItems.map((item) => ({
+          xdesc: item.xdesc,
+          xitem: item.xitem,
+          xlineamt: item.xlineamt,
+          xqty: item.xqty,
+          xrate: item.xrate,
+          xunitsel: item.xunitstk || "Pcs"
+        }))
+      };
+
+      const response = await createSalesReturn(payload);
       
-      alert(`Returning ${returnItems.length} items\nReason: ${returnReason}\nGross amount: ৳ ${totals.totalAmount}`);
-      navigate(-1);
-    } catch (error) {
+      setSuccessToast(response.message || 'Sales return created successfully');
+      setTimeout(() => {
+        setSuccessToast(null);
+        navigate(-1);
+      }, 2000);
+      
+    } catch (error: any) {
       console.error('Return failed:', error);
+      setErrorToast(error.message || 'Failed to create sales return');
+      setTimeout(() => setErrorToast(null), 3000);
       setIsSubmitting(false);
     }
   };
@@ -156,9 +211,13 @@ export default function SalesReturn() {
     return (
       <div className="h-[100dvh] flex flex-col items-center justify-center p-4 bg-bg-base">
         <p className="text-text-secondary">No order data provided.</p>
-        <button onClick={() => navigate(-1)} className="mt-4 px-4 py-2 bg-bg-card border border-ui-border rounded-lg text-text-main">
+        <Button 
+          variant="outline" 
+          onClick={() => navigate(-1)}
+          className="mt-4"
+        >
           Go Back
-        </button>
+        </Button>
       </div>
     );
   }
@@ -168,12 +227,14 @@ export default function SalesReturn() {
       {/* Header */}
       <header className="flex flex-col px-4 pt-8 pb-3 bg-bg-card shadow-[0_2px_10px_rgb(0,0,0,0.02)] z-10 rounded-b-2xl shrink-0">
         <div className="flex items-center">
-          <button
+          <Button
+            variant="ghost"
+            size="icon"
             onClick={() => navigate(-1)}
-            className="w-8 h-8 flex items-center justify-center rounded-full bg-bg-base text-text-secondary active:scale-95 transition-transform"
+            className="w-8 h-8 text-text-secondary active:scale-95 transition-transform"
           >
             <ChevronLeft className="w-5 h-5" />
-          </button>
+          </Button>
           <h1 className="flex-1 text-center text-[14px] font-bold text-text-main pr-8">Sales Return</h1>
         </div>
       </header>
@@ -282,52 +343,58 @@ export default function SalesReturn() {
                       {item.xdesc}
                     </div>
                     <div className="flex items-center gap-2 mt-1 flex-wrap">
-                      {/* Item Code - Teal */}
-                      <span className="text-[10px] font-medium text-teal-700 bg-teal-50 px-1.5 py-0.5 rounded border border-teal-100 whitespace-nowrap">
+                      {/* Item Code - primary */}
+                      <span className="text-[10px] font-medium primary- bg-primary-50 px-1.5 py-0.5 rounded border border-primary-100 whitespace-nowrap">
                         Item: {item.xitem}
                       </span>
-                      {/* Rate - Teal */}
-                      <span className="text-[10px] font-medium text-teal-700 bg-teal-50 px-1.5 py-0.5 rounded border border-teal-100 whitespace-nowrap">
+                      {/* Rate - primary */}
+                      <span className="text-[10px] font-medium text-primary-700 bg-primary-50 px-1.5 py-0.5 rounded border border-primary-100 whitespace-nowrap">
                         Rate: ৳{item.xrate}
                       </span>
                     </div>
                   </div>
-                  <button
+                  <Button
+                    variant="ghost"
+                    size="icon"
                     onClick={() => removeItem(idx)}
                     disabled={isSubmitting}
-                    className="p-1.5 text-error hover:text-error/80 hover:bg-error/10 rounded-lg transition-colors shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="text-error hover:text-error/80 hover:bg-error/10 disabled:opacity-50"
                   >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
+                    <Trash2 className="w-4 h-4 text-error" />
+                  </Button>
                 </div>
 
                 <div className="flex items-center justify-between mt-3">
-                  {/* Quantity Controls - Teal */}
-                  <div className="flex items-center gap-2 border border-teal-100 rounded-lg p-0.5 shadow-sm bg-teal-50/30">
-                    <button
+                  {/* Quantity Controls - primary */}
+                  <div className="flex items-center gap-2 border border-primary-100 rounded-lg p-0.5 shadow-sm bg-primary-50/30">
+                    <Button
+                      variant="ghost"
+                      size="icon"
                       onClick={() => updateQuantity(idx, -1)}
                       disabled={isSubmitting}
-                      className="w-8 h-8 flex items-center justify-center bg-teal-50 text-teal-600 rounded-md hover:bg-teal-100 active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100"
+                      className="w-8 h-8 bg-primary-50 text-primary-600 hover:bg-primary-100 disabled:opacity-50 rounded-md"
                     >
                       <Minus className="w-3.5 h-3.5" />
-                    </button>
+                    </Button>
                     <input
                       type="number"
                       value={item.xqty === 0 ? '' : item.xqty}
                       onChange={(e) => handleQuantityInputChange(idx, e.target.value)}
                       onBlur={() => handleQuantityInputBlur(idx)}
                       disabled={isSubmitting}
-                      className="w-12 h-8 text-center text-[13px] font-bold bg-transparent border-none focus:outline-none focus:ring-2 focus:ring-teal-200 rounded text-teal-700 disabled:opacity-50"
+                      className="w-12 h-8 text-center text-[13px] font-bold bg-transparent border-none focus:outline-none focus:ring-2 focus:ring-primary-200 rounded text-primary-700 disabled:opacity-50"
                     />
-                    <button
+                    <Button
+                      variant="ghost"
+                      size="icon"
                       onClick={() => updateQuantity(idx, 1)}
                       disabled={isSubmitting}
-                      className="w-8 h-8 flex items-center justify-center bg-teal-50 text-teal-600 rounded-md hover:bg-teal-100 active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100"
+                      className="w-8 h-8 bg-primary-50 text-primary-600 hover:bg-primary-100 disabled:opacity-50 rounded-md"
                     >
                       <Plus className="w-3.5 h-3.5" />
-                    </button>
+                    </Button>
                   </div>
-                  {/* Line Amount - Teal */}
+                  {/* Line Amount - primary */}
                   <span className="text-[12px] font-bold text-teal-600 whitespace-nowrap">
                     ৳{item.xlineamt?.toLocaleString()}
                   </span>
@@ -360,24 +427,43 @@ export default function SalesReturn() {
 
       {/* Footer Return Button */}
       <div className="absolute bottom-0 left-0 right-0 p-4 bg-bg-card border-t border-ui-border shadow-[0_-4px_10px_rgb(0,0,0,0.02)] z-10 w-full md:max-w-3xl md:mx-auto">
-        <button
+        <Button
+          variant="primary"
+          size="lg"
+          className="w-full shadow-lg shadow-primary/20"
           onClick={handleReturn}
           disabled={returnItems.length === 0 || isSubmitting}
-          className="w-full h-[48px] flex items-center justify-center gap-2 bg-primary text-white text-[13px] font-bold rounded-xl shadow-md shadow-primary/20 active:scale-[0.98] transition-all disabled:opacity-50 disabled:active:scale-100 hover:bg-primary-hover"
+          isLoading={isSubmitting}
         >
-          {isSubmitting ? (
-            <>
-              <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-              </svg>
-              Returning...
-            </>
-          ) : (
-            'Confirm Return'
-          )}
-        </button>
+          Confirm Return
+        </Button>
       </div>
+
+      {/* Confirmation Modal */}
+      <ConfirmModal
+        isOpen={isConfirmModalOpen}
+        title="Confirm Sales Return"
+        message={`Are you sure you want to return ${returnItems.length} items for a total of ৳${totals.totalAmount.toLocaleString()}?`}
+        onCancel={() => setIsConfirmModalOpen(false)}
+        onConfirm={executeReturn}
+        isProcessing={isSubmitting}
+      />
+
+      {/* Error Toast */}
+      {errorToast && (
+        <div className="fixed top-20 left-1/2 -translate-x-1/2 w-[calc(100%-2rem)] max-w-md z-[100] bg-error text-white px-4 py-3 rounded-xl shadow-lg flex items-center gap-3 animate-in slide-in-from-top-4">
+          <X className="w-5 h-5 shrink-0" />
+          <p className="text-sm font-medium">{errorToast}</p>
+        </div>
+      )}
+
+      {/* Success Toast */}
+      {successToast && (
+        <div className="fixed top-20 left-1/2 -translate-x-1/2 w-[calc(100%-2rem)] max-w-md z-[100] bg-success text-white px-4 py-3 rounded-xl shadow-lg flex items-center gap-3 animate-in slide-in-from-top-4">
+          <CheckCircle2 className="w-5 h-5 shrink-0" />
+          <p className="text-sm font-medium">{successToast}</p>
+        </div>
+      )}
     </div>
   );
 }

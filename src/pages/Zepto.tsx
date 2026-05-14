@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ChevronLeft, Package, User, Trash2, Plus, Minus } from 'lucide-react';
+import { ChevronLeft, Package, Trash2, Plus, Minus } from 'lucide-react';
 import { Customer } from '../api_customers';
 import { Item } from '../api_items';
 import { getCurrentUser } from '../api_users';

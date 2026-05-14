@@ -9,6 +9,17 @@
   --color-primary-light: #FDBA74;
   --color-primary-dark: #C2410C;
 
+  --color-primary-50:  #FFF7ED;
+  --color-primary-100: #FFEDD5;
+  --color-primary-200: #FED7AA;
+  --color-primary-300: #FDBA74;
+  --color-primary-400: #FB923C;
+  --color-primary-500: #F97316; /* base */
+  --color-primary-600: #EA580C;
+  --color-primary-700: #C2410C;
+  --color-primary-800: #9A3412;
+  --color-primary-900: #7C2D12;
+
   --color-secondary-blue: #2563EB;
   --color-secondary-teal: #14B8A6;
   --color-secondary-gold: #F59E0B;

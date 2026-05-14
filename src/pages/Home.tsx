@@ -1,10 +1,13 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getCurrentUser, logout } from '../api_users';
-import { Loader2, LogOut, User, LayoutDashboard, ShoppingCart, BarChart3, Bell, Search, Plus, Send, CheckCircle2, Minus, Trash2, X, MessageSquare, Receipt, ShoppingBag, Clock, Ban, Package } from 'lucide-react';
-import { Card, IconBox, Button, ConfirmModal } from '../components';
+import { Loader2, LogOut, User, BarChart3, Send, CheckCircle2, Minus, Trash2, X, Plus } from 'lucide-react';
+import { Card, Button, ConfirmModal } from '../components';
 import { sendBulkOrders } from '../api_send_orders';
-import { PendingOrder } from '../api_orders';
+import { DASHBOARD_ACTIONS } from '../components/dashboard/dashboard-actions';
+import ActionGrid from '../components/dashboard/ActionGrid';
+import MobileBottomNav from '../components/navigation/MobileBottomNav';
+import MobileTopBar from '../components/navigation/MobileTopBar';
 
 export default function Home() {
   const [user, setUser] = useState<any>(null);
@@ -68,7 +71,6 @@ export default function Home() {
         setUser(userData);
       } catch (error) {
         console.error('Failed to fetch user:', error);
-        // If error is due to auth, API interceptor handles redirect
       } finally {
         setInitialLoading(false);
       }
@@ -87,6 +89,14 @@ export default function Home() {
       setPendingOrders([]);
     }
   }, [activeTab]);
+
+  const handleTabChange = (tab: string) => {
+    if (tab === 'profile') {
+      navigate('/profile');
+    } else {
+      setActiveTab(tab);
+    }
+  };
 
   const handleUpdatePendingItemQuantity = (orderIndex: number, itemIndex: number, delta: number) => {
     const newOrders = [...pendingOrders];
@@ -212,7 +222,7 @@ export default function Home() {
       navigate('/login');
     } catch (error) {
       console.error('Logout failed:', error);
-      navigate('/login'); // Force redirect even if server fails
+      navigate('/login');
     }
   };
 
@@ -225,436 +235,131 @@ export default function Home() {
   }
 
   return (
-    <div className="min-h-[100dvh] bg-bg-base flex flex-col pb-16 md:pb-0 md:flex-row relative max-w-md mx-auto shadow-2xl overflow-hidden md:max-w-full">
-      {/* Mobile Top App Bar */}
-      <header className="md:hidden flex items-center justify-between px-4 pt-8 pb-3 bg-bg-card shadow-[0_2px_10px_rgb(0,0,0,0.02)] z-10 rounded-b-2xl">
-        <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary">
-            <User className="w-4 h-4" />
-          </div>
-          <div>
-            <p className="text-[9px] font-bold text-text-muted uppercase tracking-wider">Good Morning</p>
-            <h1 className="text-[13px] font-bold text-text-main leading-tight truncate max-w-[120px]">{user?.username || 'User'}</h1>
-          </div>
-        </div>
-        <div className="flex gap-2">
-          <button className="w-8 h-8 flex items-center justify-center rounded-full bg-bg-base text-text-secondary relative">
-            <Bell className="w-4 h-4" />
-            <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 bg-error rounded-full outline outline-[1.5px] outline-bg-base"></span>
-          </button>
-          <button onClick={handleLogout} className="w-8 h-8 flex items-center justify-center rounded-full bg-error/10 text-error">
-            <LogOut className="w-4 h-4" />
-          </button>
-        </div>
-      </header>
+    <div className="min-h-[100dvh] bg-bg-base flex flex-col pb-16 relative max-w-md mx-auto shadow-2xl overflow-hidden">
+      <MobileTopBar user={user} onLogout={handleLogout} />
 
-      {/* Desktop Sidebar (hidden on mobile) */}
-      <aside className="w-64 bg-sidebar text-white hidden md:flex flex-col">
-        <div className="h-16 flex items-center px-6 border-b border-ui-border/10 mt-2">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary to-primary-hover flex items-center justify-center font-bold text-base shadow-lg shadow-primary/20">
-              P
-            </div>
-            <span className="text-lg font-bold tracking-tight">App OS</span>
-          </div>
-        </div>
-        <div className="p-4 flex-1 overflow-y-auto">
-          <ul className="space-y-1">
-            {[
-              { id: 'dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-              { id: 'sales', icon: ShoppingCart, label: 'Sales' },
-              { id: 'send_orders', icon: Send, label: 'Send Orders' },
-              { id: 'profile', icon: User, label: 'Profile' }
-            ].map((item) => (
-              <li key={item.id}>
-                <button 
-                  onClick={() => setActiveTab(item.id)}
-                  className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 ${
-                    activeTab === item.id 
-                      ? 'bg-primary text-white shadow-md shadow-primary/20' 
-                      : 'text-text-muted hover:bg-white/5 hover:text-white'
-                  }`}
-                >
-                  <div className="flex items-center gap-3">
-                    <item.icon className="w-4 h-4" />
-                    {item.label}
-                  </div>
-                  {item.id === 'send_orders' && pendingOrders.length > 0 && (
-                    <span className={`text-[10px] font-bold px-1.5 min-w-[18px] h-[18px] flex items-center justify-center rounded-full ${
-                      activeTab === item.id ? 'bg-white text-primary' : 'bg-red-500 text-white'
-                    }`}>
-                      {pendingOrders.length}
-                    </span>
-                  )}
-                </button>
-              </li>
-            ))}
-          </ul>
-        </div>
-        <div className="p-4 border-t border-ui-border/10">
-          <button onClick={handleLogout} className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-text-muted hover:bg-error/10 hover:text-error text-sm font-medium transition-all duration-200">
-            <LogOut className="w-4 h-4" />
-            Sign out
-          </button>
-        </div>
-      </aside>
-
-      {/* Main Content Area */}
-      <div className="flex-1 flex flex-col min-w-0 max-w-full">
-        {/* Desktop Top Navbar */}
-        <header className="h-16 bg-bg-base border-b border-ui-border hidden md:flex items-center justify-between px-6">
-          <div className="flex items-center w-72 relative">
-            <Search className="w-4 h-4 absolute left-3 text-text-muted" />
-            <input 
-              type="text" 
-              placeholder="Search anything..." 
-              className="w-full bg-white border border-ui-border rounded-lg pl-9 pr-3 py-2 text-sm text-text-main focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary placeholder-text-muted transition-all"
-            />
-          </div>
-          <div className="flex items-center gap-5">
-            <button className="relative text-text-secondary hover:text-text-main transition-colors">
-              <Bell className="w-5 h-5" />
-              <span className="absolute top-0 right-0 w-2 h-2 bg-error rounded-full border-2 border-bg-base"></span>
-            </button>
-            <div className="flex items-center gap-3 border-l border-ui-border pl-5">
-              <div className="text-right">
-                <p className="text-xs font-bold text-text-main">{user?.username}</p>
-                <p className="text-[10px] text-text-muted">Admin</p>
-              </div>
-              <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary text-sm font-bold">
-                 {user?.username?.charAt(0).toUpperCase() || 'U'}
-              </div>
-            </div>
-          </div>
-        </header>
-
-        {/* Dashboard Content */}
-        <main className="flex-1 p-4 overflow-y-auto">
-          {activeTab === 'profile' ? (
-            <div className="max-w-3xl mx-auto space-y-3 pb-4">
-              <div className="flex items-center justify-between mb-2">
-                <h2 className="text-[16px] font-bold text-text-main">User Profile</h2>
-              </div>
-              
-              <Card className="!p-4 !rounded-[16px] relative overflow-hidden mb-3">
-                 <div className="absolute top-0 right-0 w-24 h-24 bg-primary/5 rounded-full -mr-8 -mt-8 blur-2xl"></div>
-                 <div className="flex items-center gap-3 relative z-10">
-                    <div className="w-12 h-12 rounded-full bg-gradient-to-br from-primary to-primary-hover flex items-center justify-center text-white text-[20px] font-bold shadow-md shadow-primary/20">
-                      {user?.username?.charAt(0).toUpperCase() || 'U'}
-                    </div>
-                    <div>
-                      <h3 className="text-[15px] font-bold text-text-main leading-tight mb-0.5">{user?.username || 'User'}</h3>
-                      <p className="text-[11px] text-text-muted">{user?.email || 'No email provided'}</p>
-                      <div className="mt-1.5 flex items-center">
-                        <span className="inline-flex items-center px-1.5 py-0.5 rounded-md bg-success/10 border border-success/20 text-[9px] font-bold text-success uppercase tracking-wider">
-                           <div className="w-1.5 h-1.5 rounded-full bg-success mr-1"></div>
-                           {user?.status || 'Active'}
-                        </span>
-                      </div>
-                    </div>
-                 </div>
-              </Card>
-
-              <div className="space-y-3">
-                 <Card className="!p-3 !rounded-[16px]">
-                    <h4 className="text-[10px] font-bold text-text-muted uppercase tracking-wider mb-2">Contact Info</h4>
-                    <div className="space-y-1.5">
-                       <div className="flex justify-between items-center bg-bg-base hover:bg-gray-50 transition-colors p-2.5 rounded-[12px] border border-ui-border/50">
-                         <span className="text-[11px] text-text-muted font-medium">Mobile</span>
-                         <span className="text-[12px] font-semibold text-text-main">{user?.mobile || 'N/A'}</span>
-                       </div>
-                       <div className="flex justify-between items-center bg-bg-base hover:bg-gray-50 transition-colors p-2.5 rounded-[12px] border border-ui-border/50">
-                         <span className="text-[11px] text-text-muted font-medium">Email</span>
-                         <span className="text-[12px] font-semibold text-text-main">{user?.email || 'N/A'}</span>
-                       </div>
-                    </div>
-                 </Card>
-                 
-                 <Card className="!p-3 !rounded-[16px]">
-                    <h4 className="text-[10px] font-bold text-text-muted uppercase tracking-wider mb-2">Account Details</h4>
-                    <div className="grid grid-cols-2 gap-1.5">
-                       <div className="bg-bg-base hover:bg-gray-50 transition-colors p-2.5 rounded-[12px] border border-ui-border/50">
-                         <p className="text-[9px] text-text-muted font-medium mb-0.5">User ID</p>
-                         <p className="text-[11px] font-semibold text-primary truncate">{user?.user_id || 'N/A'}</p>
-                       </div>
-                       <div className="bg-bg-base hover:bg-gray-50 transition-colors p-2.5 rounded-[12px] border border-ui-border/50">
-                         <p className="text-[9px] text-text-muted font-medium mb-0.5">Role</p>
-                         <p className="text-[11px] font-semibold capitalize text-text-main truncate">{user?.is_admin || 'N/A'}</p>
-                       </div>
-                       <div className="bg-bg-base hover:bg-gray-50 transition-colors p-2.5 rounded-[12px] border border-ui-border/50">
-                         <p className="text-[9px] text-text-muted font-medium mb-0.5">Business ID</p>
-                         <p className="text-[11px] font-semibold text-text-main truncate">{user?.businessId || 'N/A'}</p>
-                       </div>
-                       <div className="bg-bg-base hover:bg-gray-50 transition-colors p-2.5 rounded-[12px] border border-ui-border/50">
-                         <p className="text-[9px] text-text-muted font-medium mb-0.5">Terminal</p>
-                         <p className="text-[11px] font-semibold text-text-main truncate">{user?.terminal || 'N/A'}</p>
-                       </div>
-                    </div>
-                 </Card>
-              </div>
-              
-              <div className="mt-4 md:hidden pb-12">
-                 <button onClick={handleLogout} className="w-full flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-[12px] bg-error/10 text-error font-bold text-[12px] transition-colors hover:bg-error/20 active:scale-[0.98]">
-                    <LogOut className="w-3.5 h-3.5" />
-                    Sign Out
-                 </button>
-              </div>
-            </div>
-          ) : activeTab === 'send_orders' ? (
-            <div className="max-w-3xl mx-auto pb-20 relative min-h-full">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-[16px] font-bold text-text-main">Pending Orders</h2>
-                {pendingOrders.length > 0 && (
-                   <span className="text-[11px] font-bold text-primary bg-primary/10 px-2.5 py-1 rounded-full">
-                      {pendingOrders.length} orders
-                   </span>
-                )}
-              </div>
-
-              {pendingOrders.length === 0 ? (
-                 <div className="flex flex-col items-center justify-center py-12 text-center">
-                    <CheckCircle2 className="w-12 h-12 text-success/50 mb-3" />
-                    <p className="text-[14px] font-bold text-text-main">All Caught Up</p>
-                    <p className="text-[11px] text-text-muted mt-1">No pending orders to send.</p>
-                 </div>
-              ) : (
-                <div className="space-y-4">
-                  {pendingOrders.map((order, idx) => {
-                    const totalAmount = order.items.reduce((sum: number, item: any) => sum + item.xlinetotal, 0);
-                    return (
-                      <Card key={idx} className="!p-3 sm:!p-4 !rounded-[12px] bg-orange-100/80 border-orange-200 shadow-sm transition-all hover:shadow-md">
-                         <div className="flex justify-between items-start mb-3 border-b border-orange-200/60 pb-2">
-                           <div className="flex-1 pr-2">
-                              <div className="flex items-baseline gap-2 flex-wrap">
-                                <p className={`text-[10px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wide border shrink-0 ${getBusinessBadgeColor(order.zid)}`}>
-                                  {getBusinessName(order.zid)}--{order.zid}
-                                </p>
-                                <h3 className="text-[13px] font-bold text-text-main leading-tight break-words">
-                                  {order.xcusname} <span className="text-[10px] text-text-muted font-medium ml-1">({order.xcus})</span>
-                                </h3>
-                              </div>
-                           </div>
-                           <div className="text-right shrink-0 mt-0.5">
-                              <p className="text-[9px] text-text-muted mb-0.5 uppercase tracking-wide font-bold">Total</p>
-                              <p className="text-[13px] font-bold text-primary">৳{totalAmount.toLocaleString()}</p>
-                           </div>
-                         </div>
-                         <div className="space-y-2 mb-3 max-h-[180px] overflow-y-auto pr-1">
-                           {order.items.map((item: any, iIdx: number) => (
-                             <div key={iIdx} className="flex justify-between items-start bg-white p-2 rounded-lg border border-ui-border/40 shadow-sm">
-                                <div className="flex-1 min-w-0 pr-2">
-                                  <p className="text-[11px] font-bold text-text-main line-clamp-1 mb-0.5">{item.xdesc}</p>
-                                  <p className="text-[9px] text-text-muted font-medium">{item.xitem} • ৳{item.xprice}</p>
-                                </div>
-                                <div className="flex flex-col items-end shrink-0 gap-1.5">
-                                  <span className="text-[11px] font-bold text-text-main shrink-0">
-                                    ৳{item.xlinetotal.toLocaleString()}
-                                  </span>
-                                  <div className="flex items-center gap-1.5">
-                                     <div className="flex items-center border border-ui-border rounded-lg overflow-hidden">
-                                        <button 
-                                          onClick={() => handleUpdatePendingItemQuantity(idx, iIdx, -1)}
-                                          className="w-7 h-7 flex items-center justify-center bg-gray-50 hover:bg-gray-200 text-text-main transition-colors active:bg-gray-300"
-                                        >
-                                          <Minus className="w-3.5 h-3.5" />
-                                        </button>
-                                        <span className="w-7 text-center text-[11px] font-bold text-text-main">
-                                          {item.xqty}
-                                        </span>
-                                        <button 
-                                          onClick={() => handleUpdatePendingItemQuantity(idx, iIdx, 1)}
-                                          className="w-7 h-7 flex items-center justify-center bg-gray-50 hover:bg-gray-200 text-text-main transition-colors active:bg-gray-300"
-                                        >
-                                          <Plus className="w-3.5 h-3.5" />
-                                        </button>
-                                     </div>
-                                     <button
-                                       onClick={() => handleRemovePendingItem(idx, iIdx)}
-                                       className="w-7 h-7 flex items-center justify-center rounded-lg bg-red-50 text-red-500 hover:bg-red-100 transition-colors ml-1 active:bg-red-200"
-                                     >
-                                       <Trash2 className="w-3.5 h-3.5" />
-                                     </button>
-                                  </div>
-                                </div>
-                             </div>
-                           ))}
-                         </div>
-                         <div className="flex items-center justify-between pt-1.5 border-t border-ui-border/50">
-                            <p className="text-[10px] text-text-secondary font-medium">
-                              {order.items.length} items
-                            </p>
-                            <Button
-                              variant="primary"
-                              size="sm"
-                              className="!h-7 !px-3 !rounded-md text-[10px]"
-                              onClick={() => handleSendSingleOrder(idx)}
-                              disabled={isSending}
-                            >
-                               {isSending ? <Loader2 className="w-3 h-3 animate-spin" /> : <Send className="w-3 h-3 mr-1" />} Send
-                            </Button>
-                         </div>
-                      </Card>
-                    );
-                  })}
-                </div>
-              )}
-
-              {/* Floating Action Button for Send All */}
+      <main className="flex-1 p-4 overflow-y-auto">
+        {activeTab === 'send_orders' ? (
+          <div className="pb-20 relative min-h-full">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-[16px] font-bold text-text-main">Pending Orders</h2>
               {pendingOrders.length > 0 && (
-                <div className="fixed bottom-24 right-4 md:right-8 z-40">
-                  <button 
-                    onClick={handleSendAllOrders}
-                    disabled={isSending}
-                    className="flex items-center justify-center w-[52px] h-[52px] bg-text-main text-white rounded-full shadow-[0_8px_30px_rgb(0,0,0,0.12)] shadow-text-main/30 hover:bg-black transition-transform active:scale-95 disabled:opacity-70 disabled:active:scale-100"
-                  >
-                    {isSending ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5 ml-0.5" />}
-                  </button>
-                </div>
+                <span className="text-[11px] font-bold text-primary bg-primary/10 px-2.5 py-1 rounded-full">
+                  {pendingOrders.length} orders
+                </span>
               )}
             </div>
-          ) : activeTab === 'dashboard' ? (
-            <>
-              {/* Quick Actions / Balance Card Mobile */}
-              <div className="mb-4 md:mb-5">
-                <div className="bg-gradient-to-br from-sidebar to-[#1e293b] rounded-[20px] p-4 md:p-5 shadow-lg relative overflow-hidden text-white">
-                   {/* Decorative glow */}
-                   <div className="absolute top-0 right-0 w-24 h-24 bg-primary blur-2xl opacity-20 rounded-full"></div>
-                   <div className="absolute bottom-0 left-0 w-20 h-20 bg-secondary-blue blur-2xl opacity-20 rounded-full"></div>
-                   
-                   <div className="relative z-10 flex justify-between items-start">
-                      <div>
-                        <p className="text-white/70 font-medium text-[11px] mb-0.5">Total Revenue</p>
-                        <h2 className="text-2xl md:text-3xl font-bold tracking-tight">$45,231.89</h2>
-                        <div className="mt-1.5 inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-success/20 text-success text-[10px] font-bold">
-                          <BarChart3 className="w-3 h-3" />
-                          +12.5% vs last week
+
+            {pendingOrders.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-12 text-center">
+                <CheckCircle2 className="w-12 h-12 text-success/50 mb-3" />
+                <p className="text-[14px] font-bold text-text-main">All Caught Up</p>
+                <p className="text-[11px] text-text-muted mt-1">No pending orders to send.</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {pendingOrders.map((order, idx) => {
+                  const totalAmount = order.items.reduce((sum: number, item: any) => sum + item.xlinetotal, 0);
+                  return (
+                    <Card key={idx} className="!p-3 !rounded-[12px] bg-orange-100/80 border-orange-200 shadow-sm">
+                      <div className="flex justify-between items-start mb-3 border-b border-orange-200/60 pb-2">
+                        <div className="flex-1 pr-2">
+                          <div className="flex items-baseline gap-2 flex-wrap">
+                            <p className={`text-[10px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wide border shrink-0 ${getBusinessBadgeColor(order.zid)}`}>
+                              {getBusinessName(order.zid)}--{order.zid}
+                            </p>
+                            <h3 className="text-[13px] font-bold text-text-main leading-tight break-words">
+                              {order.xcusname} <span className="text-[10px] text-text-muted font-medium ml-1">({order.xcus})</span>
+                            </h3>
+                          </div>
+                        </div>
+                        <div className="text-right shrink-0">
+                          <p className="text-[9px] text-text-muted mb-0.5 uppercase tracking-wide font-bold">Total</p>
+                          <p className="text-[13px] font-bold text-primary">৳{totalAmount.toLocaleString()}</p>
                         </div>
                       </div>
-                   </div>
-                </div>
+                      <div className="space-y-2 mb-3 max-h-[180px] overflow-y-auto pr-1">
+                        {order.items.map((item: any, iIdx: number) => (
+                          <div key={iIdx} className="flex justify-between items-start bg-white p-2 rounded-lg border border-ui-border/40 shadow-sm">
+                            <div className="flex-1 min-w-0 pr-2">
+                              <p className="text-[11px] font-bold text-text-main line-clamp-1 mb-0.5">{item.xdesc}</p>
+                              <p className="text-[9px] text-text-muted font-medium">{item.xitem} • ৳{item.xprice}</p>
+                            </div>
+                            <div className="flex flex-col items-end shrink-0 gap-1.5">
+                              <span className="text-[11px] font-bold text-text-main">৳{item.xlinetotal.toLocaleString()}</span>
+                              <div className="flex items-center gap-1.5">
+                                <div className="flex items-center border border-ui-border rounded-lg overflow-hidden">
+                                  <button onClick={() => handleUpdatePendingItemQuantity(idx, iIdx, -1)} className="w-7 h-7 flex items-center justify-center bg-gray-50 hover:bg-gray-200 text-text-main transition-colors active:bg-gray-300">
+                                    <Minus className="w-3.5 h-3.5" />
+                                  </button>
+                                  <span className="w-7 text-center text-[11px] font-bold text-text-main">{item.xqty}</span>
+                                  <button onClick={() => handleUpdatePendingItemQuantity(idx, iIdx, 1)} className="w-7 h-7 flex items-center justify-center bg-gray-50 hover:bg-gray-200 text-text-main transition-colors active:bg-gray-300">
+                                    <Plus className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
+                                <button onClick={() => handleRemovePendingItem(idx, iIdx)} className="w-7 h-7 flex items-center justify-center rounded-lg bg-red-50 text-red-500 hover:bg-red-100 transition-colors active:bg-red-200">
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="flex items-center justify-between pt-1.5 border-t border-ui-border/50">
+                        <p className="text-[10px] text-text-secondary font-medium">{order.items.length} items</p>
+                        <Button variant="primary" size="sm" className="!h-7 !px-3 !rounded-md text-[10px]" onClick={() => handleSendSingleOrder(idx)} disabled={isSending}>
+                          {isSending ? <Loader2 className="w-3 h-3 animate-spin" /> : <Send className="w-3 h-3 mr-1" />} Send
+                        </Button>
+                      </div>
+                    </Card>
+                  );
+                })}
               </div>
+            )}
 
-              {/* Action Buttons Section */}
-              <div className="mb-5">
-                <div className="bg-[#fff7ed] border border-orange-100 rounded-[16px] p-3 shadow-[0_2px_10px_rgb(0,0,0,0.03)] text-text-main flex flex-col gap-2">
-                    <div className="grid grid-cols-3 gap-2">
-                     <button
-                       onClick={() => navigate('/feedback')} 
-                       className="flex flex-col items-center justify-center bg-white p-3 rounded-xl shadow-[0_1px_4px_rgb(0,0,0,0.02)] border border-[#e2e8f0]/60 hover:bg-blue-50/50 hover:border-blue-200 transition-all active:scale-95"
-                     >
-                       <div className="w-10 h-10 rounded-full bg-blue-100/80 text-blue-600 flex items-center justify-center mb-2">
-                         <MessageSquare className="w-4 h-4" strokeWidth={2.5} />
-                       </div>
-                       <span className="text-[10px] font-bold text-slate-700 leading-tight">Feedback</span>
-                     </button>
-                     
-                     <button 
-                       onClick={() => navigate('/rec-voucher')}
-                       className="flex flex-col items-center justify-center bg-white p-3 rounded-xl shadow-[0_1px_4px_rgb(0,0,0,0.02)] border border-[#e2e8f0]/60 hover:bg-orange-50/50 hover:border-orange-200 transition-all active:scale-95"
-                     >
-                       <div className="w-10 h-10 rounded-full bg-orange-100/80 text-orange-600 flex items-center justify-center mb-2">
-                         <Receipt className="w-4 h-4" strokeWidth={2.5} />
-                       </div>
-                       <span className="text-[10px] font-bold text-slate-700 text-center leading-tight">Rec Voucher</span>
-                     </button>
-
-                     <button 
-                       onClick={() => navigate('/delivery-orders')}
-                       className="flex flex-col items-center justify-center bg-white p-3 rounded-xl shadow-[0_1px_4px_rgb(0,0,0,0.02)] border border-[#e2e8f0]/60 hover:bg-purple-50/50 hover:border-purple-200 transition-all active:scale-95"
-                     >
-                       <div className="w-10 h-10 rounded-full bg-purple-100/80 text-purple-600 flex items-center justify-center mb-2">
-                         <Package className="w-4 h-4" strokeWidth={2.5} />
-                       </div>
-                       <span className="text-[10px] font-bold text-slate-700 text-center leading-tight">Delivery</span>
-                     </button>
-                   </div>
-                   
-                   <div className="grid grid-cols-3 gap-2">
-                    <button
-                      onClick={() => navigate('/all-pending-orders')} 
-                      className="flex flex-col items-center justify-center bg-white p-3 rounded-xl shadow-[0_1px_4px_rgb(0,0,0,0.02)] border border-[#e2e8f0]/60 hover:bg-yellow-50/50 hover:border-yellow-200 transition-all active:scale-95"
-                    >
-                      <div className="w-10 h-10 rounded-full bg-yellow-100/80 text-yellow-600 flex items-center justify-center mb-2">
-                        <Clock className="w-4 h-4" strokeWidth={2.5} />
-                      </div>
-                      <span className="text-[10px] font-bold text-slate-700 leading-tight">Pending</span>
-                    </button>
-                    
-                    <button 
-                      onClick={() => navigate('/all-confirmed-orders')}
-                      className="flex flex-col items-center justify-center bg-white p-3 rounded-xl shadow-[0_1px_4px_rgb(0,0,0,0.02)] border border-[#e2e8f0]/60 hover:bg-green-50/50 hover:border-green-200 transition-all active:scale-95"
-                    >
-                      <div className="w-10 h-10 rounded-full bg-green-100/80 text-green-600 flex items-center justify-center mb-2">
-                        <CheckCircle2 className="w-4 h-4" strokeWidth={2.5} />
-                      </div>
-                      <span className="text-[10px] font-bold text-slate-700 text-center leading-tight">Confirm</span>
-                    </button>
-                    
-                    <button 
-                      onClick={() => navigate('/cancelled-orders')}
-                      className="flex flex-col items-center justify-center bg-white p-3 rounded-xl shadow-[0_1px_4px_rgb(0,0,0,0.02)] border border-[#e2e8f0]/60 hover:bg-red-50/50 hover:border-red-200 transition-all active:scale-95"
-                    >
-                      <div className="w-10 h-10 rounded-full bg-red-100/80 text-red-600 flex items-center justify-center mb-2">
-                        <Ban className="w-4 h-4" strokeWidth={2.5} />
-                      </div>
-                      <span className="text-[10px] font-bold text-slate-700 text-center leading-tight">Cancel</span>
-                    </button>
+            {pendingOrders.length > 0 && (
+              <div className="fixed bottom-24 right-4 z-40">
+                <button onClick={handleSendAllOrders} disabled={isSending} className="flex items-center justify-center w-[52px] h-[52px] bg-text-main text-white rounded-full shadow-[0_8px_30px_rgb(0,0,0,0.12)] hover:bg-black transition-transform active:scale-95 disabled:opacity-70">
+                  {isSending ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5 ml-0.5" />}
+                </button>
+              </div>
+            )}
+          </div>
+        ) : activeTab === 'dashboard' ? (
+          <>
+            <div className="mb-4">
+              <div className="bg-gradient-to-br from-sidebar to-[#1e293b] rounded-[20px] p-4 shadow-lg relative overflow-hidden text-white">
+                <div className="absolute top-0 right-0 w-24 h-24 bg-primary blur-2xl opacity-20 rounded-full"></div>
+                <div className="absolute bottom-0 left-0 w-20 h-20 bg-secondary-blue blur-2xl opacity-20 rounded-full"></div>
+                <div className="relative z-10">
+                  <p className="text-white/70 font-medium text-[11px] mb-0.5">Total Revenue</p>
+                  <h2 className="text-2xl font-bold tracking-tight">$45,231.89</h2>
+                  <div className="mt-1.5 inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-success/20 text-success text-[10px] font-bold">
+                    <BarChart3 className="w-3 h-3" />
+                    +12.5% vs last week
                   </div>
                 </div>
               </div>
-            </>
-          ) : (
-             <div className="flex flex-col items-center justify-center h-full text-text-muted">
-                <p className="font-medium text-sm">Under Construction</p>
-                <p className="text-[11px] mt-1">Check back later</p>
-             </div>
-          )}
-          
-          {/* Bottom spacing for mobile nav */}
-          <div className="h-6 md:hidden"></div>
-        </main>
-      </div>
+            </div>
 
-      {/* Mobile Bottom Navigation Bar */}
-      <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-ui-border/50 flex justify-around items-center h-16 pb-[env(safe-area-inset-bottom,8px)] px-2 z-50 md:hidden shadow-[0_-4px_24px_rgb(0,0,0,0.04)] rounded-t-[16px] max-w-md mx-auto">
-        {[
-          { id: 'dashboard', icon: LayoutDashboard, label: 'Home' },
-          { id: 'sales', icon: ShoppingCart, label: 'Sales' },
-          { id: 'add', icon: Plus, label: 'Add', primary: true },
-          { id: 'send_orders', icon: Send, label: 'Send' },
-          { id: 'profile', icon: User, label: 'Profile' }
-        ].map((item) => (
-          item.primary ? (
-            <button 
-              key={item.id}
-              onClick={() => navigate('/add')}
-              className="relative -top-3 w-10 h-10 bg-gradient-to-br from-primary to-primary-hover rounded-full flex items-center justify-center text-white shadow-lg shadow-primary/30 transform transition-transform active:scale-95"
-            >
-              <item.icon className="w-5 h-5" />
-            </button>
-          ) : (
-            <button 
-              key={item.id}
-              onClick={() => setActiveTab(item.id)}
-              className={`flex flex-col items-center gap-1 w-12 pt-1 transition-colors relative ${
-                activeTab === item.id ? 'text-primary' : 'text-text-muted hover:text-text-main'
-              }`}
-            >
-              <div className="relative">
-                <item.icon className={`w-4 h-4 ${activeTab === item.id ? 'fill-primary/20' : ''}`} strokeWidth={activeTab === item.id ? 2.5 : 2} />
-                {item.id === 'send_orders' && pendingOrders.length > 0 && (
-                  <span className="absolute -top-1.5 -right-2 bg-red-500 text-white text-[8px] font-bold px-1 min-w-[14px] h-[14px] flex items-center justify-center rounded-full border border-white">
-                    {pendingOrders.length}
-                  </span>
-                )}
-              </div>
-              <span className={`text-[9px] font-bold leading-tight ${activeTab === item.id ? 'text-primary' : 'text-text-muted'}`}>{item.label}</span>
-            </button>
-          )
-        ))}
-      </nav>
+            <ActionGrid actions={DASHBOARD_ACTIONS} />
+          </>
+        ) : (
+          <div className="flex flex-col items-center justify-center h-full text-text-muted">
+            <p className="font-medium text-sm">Under Construction</p>
+            <p className="text-[11px] mt-1">Check back later</p>
+          </div>
+        )}
+        
+        <div className="h-6"></div>
+      </main>
 
-      {/* Confirmation Modal */}
+      <MobileBottomNav 
+        activeTab={activeTab}
+        onTabChange={handleTabChange}
+        pendingCount={pendingOrders.length}
+      />
+
       <ConfirmModal
         isOpen={confirmModal.isOpen}
         title={confirmModal.type === 'all' ? 'Send All Orders' : 'Send Order'}
@@ -670,17 +375,15 @@ export default function Home() {
         isProcessing={isSending}
       />
 
-      {/* Error Toast */}
       {errorToast && (
-        <div className="fixed top-20 left-1/2 -translate-x-1/2 w-[calc(100%-2rem)] max-w-md z-[100] bg-error text-white px-4 py-3 rounded-xl shadow-lg flex items-center gap-3 animate-in slide-in-from-top-4">
+        <div className="fixed top-20 left-1/2 -translate-x-1/2 w-[calc(100%-2rem)] z-[100] bg-error text-white px-4 py-3 rounded-xl shadow-lg flex items-center gap-3">
           <X className="w-5 h-5 shrink-0" />
           <p className="text-sm font-medium">{errorToast}</p>
         </div>
       )}
 
-      {/* Success Toast */}
       {successToast && (
-        <div className="fixed top-20 left-1/2 -translate-x-1/2 w-[calc(100%-2rem)] max-w-md z-[100] bg-success text-white px-4 py-3 rounded-xl shadow-lg flex items-center gap-3 animate-in slide-in-from-top-4">
+        <div className="fixed top-20 left-1/2 -translate-x-1/2 w-[calc(100%-2rem)] z-[100] bg-success text-white px-4 py-3 rounded-xl shadow-lg flex items-center gap-3">
           <CheckCircle2 className="w-5 h-5 shrink-0" />
           <p className="text-sm font-medium">{successToast}</p>
         </div>
