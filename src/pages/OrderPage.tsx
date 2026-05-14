@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Package, Trash2, Plus, Minus } from 'lucide-react';
+import { Package, Plus, Send } from 'lucide-react';
 import { Customer } from '../api_customers';
 import { Item } from '../api_items';
 import { Card, Button, CustomerSearch, ItemSearch } from '../components';
@@ -8,6 +8,7 @@ import { useCurrentUser } from '../hooks/useCurrentUser';
 import { OrderPayload } from '../types/order';
 import Header from '../components/ui/Header';
 import BusinessTabs from '../components/BusinessTabs';
+import OrderCard from '../components/OrderCard';
 
 /**
  * Configuration for each business entity.
@@ -26,45 +27,36 @@ const BUSINESS_CONFIG: Record<string, OrderPageConfig> = {
 
 /**
  * Unified order page with business tabs.
- * Switching tabs changes the active zid — CustomerSearch and ItemSearch
- * automatically fetch from the selected business's API.
- * Each tab maintains its own independent cart in localStorage.
+ * Shows ALL cart orders for the active business tab, grouped by customer.
  */
 export default function OrderPage() {
   const navigate = useNavigate();
   const { employeeId } = useCurrentUser();
 
-  // Active business tab (zid)
+  // Active business tab
   const [activeTab, setActiveTab] = useState<string>('100001');
   const config = BUSINESS_CONFIG[activeTab];
   const { zid, title, storageKey } = config;
 
-  // Form state — reset when switching tabs
+  // Form state
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [selectedItem, setSelectedItem] = useState<Item | null>(null);
   const [quantity, setQuantity] = useState<number | ''>('');
   const quantityInputRef = useRef<HTMLInputElement>(null);
 
-  // Cart state — each tab has its own cart in localStorage
+  // Cart state — { [customerCode]: OrderPayload }
   const [carts, setCarts] = useState<{ [xcus: string]: OrderPayload }>(() => {
     const saved = localStorage.getItem(storageKey);
     return saved ? JSON.parse(saved) : {};
   });
 
-  // When switching tabs: load that tab's cart from localStorage and reset form
+  // When switching tabs: save current cart, load new tab's cart, reset form
   const handleTabChange = (tabId: string) => {
-    // Save current cart before switching
     localStorage.setItem(storageKey, JSON.stringify(carts));
-    
-    // Switch tab
     setActiveTab(tabId);
-    
-    // Reset form selections (customer/item are business-specific)
     setCustomer(null);
     setSelectedItem(null);
     setQuantity('');
-
-    // Load the new tab's cart
     const newConfig = BUSINESS_CONFIG[tabId];
     const saved = localStorage.getItem(newConfig.storageKey);
     setCarts(saved ? JSON.parse(saved) : {});
@@ -77,7 +69,7 @@ export default function OrderPage() {
     }
   }, [selectedItem]);
 
-  // Persist cart to localStorage on changes
+  // Persist cart to localStorage on changes (skip initial mount)
   const isInitialMount = useRef(true);
   useEffect(() => {
     if (isInitialMount.current) {
@@ -87,6 +79,19 @@ export default function OrderPage() {
     localStorage.setItem(storageKey, JSON.stringify(carts));
   }, [carts, storageKey]);
 
+  // ─── Computed: all orders across all customers for this business ───
+  const allOrders = useMemo(() => Object.entries(carts), [carts]);
+  const totalItemCount = useMemo(
+    () => allOrders.reduce((sum, [, order]) => sum + order.items.length, 0),
+    [allOrders]
+  );
+  const grandTotal = useMemo(
+    () => allOrders.reduce((sum, [, order]) => 
+      sum + order.items.reduce((s, item) => s + item.xlinetotal, 0), 0),
+    [allOrders]
+  );
+
+  // ─── Cart Actions ───
   const handleAddToCart = () => {
     if (!customer || !selectedItem || !quantity || Number(quantity) < 1) return;
     const qtyNum = Number(quantity);
@@ -94,10 +99,9 @@ export default function OrderPage() {
     setCarts(prev => {
       const customerCode = customer.xcus;
       const existingOrder = prev[customerCode];
-      
       let newItems = existingOrder ? [...existingOrder.items] : [];
       const existingItemIndex = newItems.findIndex(i => i.xitem === selectedItem.item_id);
-      
+
       if (existingItemIndex >= 0) {
         newItems[existingItemIndex] = {
           ...newItems[existingItemIndex],
@@ -130,18 +134,15 @@ export default function OrderPage() {
         }
       };
     });
-    
+
     setSelectedItem(null);
     setQuantity('');
   };
 
-  const handleUpdateQuantity = (itemCode: string, delta: number) => {
-    if (!customer) return;
+  const handleUpdateQuantity = (customerCode: string, itemCode: string, delta: number) => {
     setCarts(prev => {
-      const customerCode = customer.xcus;
       const order = prev[customerCode];
       if (!order) return prev;
-
       const newItems = order.items.map(i => {
         if (i.xitem === itemCode) {
           const newQty = Math.max(1, i.xqty + delta);
@@ -149,62 +150,71 @@ export default function OrderPage() {
         }
         return i;
       });
-      
       return { ...prev, [customerCode]: { ...order, items: newItems } };
     });
   };
 
-  const handleRemoveFromCart = (itemCode: string) => {
-    if (!customer) return;
+  const handleRemoveFromCart = (customerCode: string, itemCode: string) => {
     setCarts(prev => {
-      const customerCode = customer.xcus;
       const order = prev[customerCode];
       if (!order) return prev;
-
       const newItems = order.items.filter(i => i.xitem !== itemCode);
-      
       if (newItems.length === 0) {
         const newCarts = { ...prev };
         delete newCarts[customerCode];
         return newCarts;
       }
-      
       return { ...prev, [customerCode]: { ...order, items: newItems } };
     });
   };
 
-  const currentOrder = customer ? carts[customer.xcus] : null;
-  const cartItems = currentOrder?.items || [];
-  const cartTotal = cartItems.reduce((sum, item) => sum + item.xlinetotal, 0);
-
-  const handlePlaceOrder = () => {
-    if (!customer || cartItems.length === 0) return;
-    
-    const customerCode = customer.xcus;
-    const orderData = carts[customerCode];
-    
-    const savedPending = localStorage.getItem('hmbr_pending_orders');
-    let pendingData = savedPending ? JSON.parse(savedPending) : { orders: [] };
-
-    if (!pendingData.orders) {
-      pendingData.orders = [];
-    }
-    
-    pendingData.orders.push(orderData);
-    localStorage.setItem('hmbr_pending_orders', JSON.stringify(pendingData));
-    
-    // Remove from cart
+  const handleRemoveCustomerOrder = (customerCode: string) => {
     setCarts(prev => {
       const newCarts = { ...prev };
       delete newCarts[customerCode];
       return newCarts;
     });
-    
-    // Reset selection
+  };
+
+  // Place order for a specific customer
+  const handlePlaceOrder = (customerCode: string) => {
+    const orderData = carts[customerCode];
+    if (!orderData || orderData.items.length === 0) return;
+
+    const savedPending = localStorage.getItem('hmbr_pending_orders');
+    let pendingData = savedPending ? JSON.parse(savedPending) : { orders: [] };
+    if (!pendingData.orders) pendingData.orders = [];
+
+    pendingData.orders.push(orderData);
+    localStorage.setItem('hmbr_pending_orders', JSON.stringify(pendingData));
+
+    // Remove this customer's order from cart
+    setCarts(prev => {
+      const newCarts = { ...prev };
+      delete newCarts[customerCode];
+      return newCarts;
+    });
+  };
+
+  // Place ALL orders for this business tab
+  const handlePlaceAllOrders = () => {
+    if (allOrders.length === 0) return;
+
+    const savedPending = localStorage.getItem('hmbr_pending_orders');
+    let pendingData = savedPending ? JSON.parse(savedPending) : { orders: [] };
+    if (!pendingData.orders) pendingData.orders = [];
+
+    allOrders.forEach(([, orderData]) => {
+      pendingData.orders.push(orderData);
+    });
+    localStorage.setItem('hmbr_pending_orders', JSON.stringify(pendingData));
+
+    // Clear all carts for this business
+    setCarts({});
     setCustomer(null);
     setSelectedItem(null);
     setQuantity('');
-    
+
     navigate('/');
   };
 
@@ -218,9 +228,11 @@ export default function OrderPage() {
 
       <main className="flex-1 p-3 overflow-hidden flex flex-col min-h-0">
         <div className="space-y-3 max-w-3xl mx-auto w-full flex-1 flex flex-col min-h-0">
-          <section className="space-y-1.5 shrink-0">
+
+          {/* ─── Customer & Item Search ─── */}
+          <section key={`cust-section-${activeTab}`} className="space-y-1.5 shrink-0">
             <label className="block text-[10px] font-semibold text-text-main ml-1">Customer Search</label>
-            <CustomerSearch 
+            <CustomerSearch
               zid={zid}
               employeeId={employeeId}
               value={customer}
@@ -232,8 +244,8 @@ export default function OrderPage() {
           <section className="space-y-1.5 mt-3 shrink-0">
             <label className="block text-[10px] font-semibold text-text-main ml-1">Item Search</label>
             <div className="flex flex-col gap-2">
-              <div className="w-full">
-                <ItemSearch 
+              <div key={`item-wrap-${activeTab}`} className="w-full">
+                <ItemSearch
                   zid={zid}
                   value={selectedItem}
                   onChange={setSelectedItem}
@@ -255,8 +267,8 @@ export default function OrderPage() {
                   />
                 </div>
                 <div className="flex-1">
-                  <Button 
-                    variant="primary" 
+                  <Button
+                    variant="primary"
                     className="w-full py-2 h-[34px] text-[11px]"
                     onClick={handleAddToCart}
                     disabled={!selectedItem || !quantity || Number(quantity) < 1}
@@ -268,95 +280,68 @@ export default function OrderPage() {
             </div>
           </section>
 
+          {/* ─── Cart: All Orders Grouped by Customer ─── */}
           <div className="border-t border-ui-border/50 pt-3 mt-4 flex-1 flex flex-col min-h-0">
             <div className="flex items-center justify-between mb-2 shrink-0">
-              <h3 className="text-[11px] font-bold text-text-main">Cart Items</h3>
-              {cartItems.length > 0 && (
-                 <span className="text-[10px] font-bold text-primary bg-primary/10 px-2 py-0.5 rounded-full">
-                    {cartItems.length} items
-                 </span>
+              <h3 className="text-[11px] font-bold text-text-main">Cart Orders</h3>
+              {allOrders.length > 0 && (
+                <span className="text-[10px] font-bold text-primary bg-primary/10 px-2 py-0.5 rounded-full">
+                  {allOrders.length} customer{allOrders.length !== 1 ? 's' : ''} • {totalItemCount} items
+                </span>
               )}
             </div>
-            
-            {cartItems.length > 0 ? (
-               <div className="flex-1 overflow-y-auto space-y-2 pb-2 pr-1">
-                  {cartItems.map((item, idx) => (
-                    <Card key={idx} className="!p-2.5 !rounded-lg border-ui-border !shadow-sm">
-                       <div className="flex justify-between items-start">
-                         <div className="flex-1 min-w-0 pr-2">
-                           <div className="flex items-center gap-1.5 mb-0.5">
-                             <span className="inline-flex px-1 py-0.5 rounded text-[8px] font-bold bg-gray-100 text-text-secondary shrink-0">
-                               {item.xitem}
-                             </span>
-                           </div>
-                           <p className="text-[11px] font-bold text-text-main leading-snug line-clamp-2">{item.xdesc}</p>
-                           <p className="text-[9px] text-text-muted mt-1 font-medium">৳{item.xprice} x {item.xqty}</p>
-                         </div>
-                         <div className="flex flex-col items-end shrink-0 gap-2">
-                           <span className="text-[11px] font-bold text-text-main">
-                             ৳{item.xlinetotal.toLocaleString()}
-                           </span>
-                           <div className="flex items-center gap-1 mt-auto">
-                              <div className="flex items-center border border-ui-border rounded overflow-hidden">
-                                 <button 
-                                   onClick={() => handleUpdateQuantity(item.xitem, -1)}
-                                   className="w-5 h-5 flex items-center justify-center bg-gray-50 hover:bg-gray-100 text-text-main transition-colors"
-                                 >
-                                   <Minus className="w-3 h-3" />
-                                 </button>
-                                 <span className="w-5 text-center text-[9px] font-medium text-text-main">
-                                   {item.xqty}
-                                 </span>
-                                 <button 
-                                   onClick={() => handleUpdateQuantity(item.xitem, 1)}
-                                   className="w-5 h-5 flex items-center justify-center bg-gray-50 hover:bg-gray-100 text-text-main transition-colors"
-                                 >
-                                   <Plus className="w-3 h-3" />
-                                 </button>
-                              </div>
-                              <button
-                                onClick={() => handleRemoveFromCart(item.xitem)}
-                                className="w-6 h-6 flex items-center justify-center rounded bg-red-50 text-red-500 hover:bg-red-100 transition-colors ml-1"
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
-                           </div>
-                         </div>
-                       </div>
-                    </Card>
-                  ))}
-               </div>
+
+            {allOrders.length > 0 ? (
+              <div className="flex-1 overflow-y-auto space-y-3 pb-2 pr-1">
+                {allOrders.map(([customerCode, order]) => (
+                  <div key={customerCode}>
+                    <OrderCard
+                      customerName={order.xcusname}
+                      customerCode={customerCode}
+                      items={order.items}
+                      onPrimaryAction={() => handlePlaceOrder(customerCode)}
+                      primaryActionLabel="Place Order"
+                      onRemoveAll={() => handleRemoveCustomerOrder(customerCode)}
+                      onUpdateQuantity={(itemCode, delta) => handleUpdateQuantity(customerCode, itemCode, delta)}
+                      onRemoveItem={(itemCode) => handleRemoveFromCart(customerCode, itemCode)}
+                    />
+                  </div>
+                ))}
+              </div>
             ) : (
-             <Card className="opacity-60 bg-gray-50 border-dashed border-2 !shadow-none !p-2 shrink-0">
+              <Card className="opacity-60 bg-gray-50 border-dashed border-2 !shadow-none !p-2 shrink-0">
                 <div className="flex flex-col items-center justify-center py-6 text-center">
                   <Package className="w-6 h-6 text-gray-300 mb-1.5" />
                   <p className="text-[11px] font-semibold text-text-secondary">Cart is Empty</p>
-                  <p className="text-[9px] text-text-muted mt-0.5">Select items to begin ordering</p>
+                  <p className="text-[9px] text-text-muted mt-0.5">Select a customer and add items</p>
                 </div>
-             </Card>
+              </Card>
             )}
           </div>
         </div>
       </main>
 
-      <div className="p-3 md:p-4 bg-white border-t border-ui-border/50 shadow-[0_-4px_24px_rgb(0,0,0,0.04)] z-10 shrink-0">
-        <div className="max-w-3xl mx-auto flex items-center gap-3">
-          {cartTotal > 0 && (
-             <div className="flex-1">
-               <p className="text-[10px] text-text-muted font-medium mb-0.5">Total Amount</p>
-               <p className="text-[14px] font-bold text-primary">৳{cartTotal.toLocaleString()}</p>
-             </div>
-          )}
-          <Button 
-             className="flex-[2] shadow-lg shadow-primary/20" 
-             size="md" 
-             disabled={cartItems.length === 0}
-             onClick={handlePlaceOrder}
-          >
-            Place Order
-          </Button>
+      {/* ─── Footer: Place All Orders ─── */}
+      {allOrders.length > 0 && (
+        <div className="p-3 md:p-4 bg-white border-t border-ui-border/50 shadow-[0_-4px_24px_rgb(0,0,0,0.04)] z-10 shrink-0">
+          <div className="max-w-3xl mx-auto flex items-center gap-3">
+            <div className="flex-1">
+              <p className="text-[10px] text-text-muted font-medium mb-0.5">
+                {allOrders.length} order{allOrders.length !== 1 ? 's' : ''} • {totalItemCount} items
+              </p>
+              <p className="text-[14px] font-bold text-primary">৳{grandTotal.toLocaleString()}</p>
+            </div>
+            <Button
+              className="flex-[2] shadow-lg shadow-primary/20"
+              size="md"
+              onClick={handlePlaceAllOrders}
+            >
+              <Send className="w-3.5 h-3.5 mr-1" />
+              Place All Orders
+            </Button>
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }
