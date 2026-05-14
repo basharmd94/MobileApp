@@ -4,42 +4,34 @@ import { ChevronLeft } from 'lucide-react';
 
 interface HeaderProps {
   title: string;
-  bgColor?: string;       // Tailwind class e.g. 'bg-white' or 'bg-blue-500'
-  textColor?: string;     // Tailwind class e.g. 'text-gray-900' or 'text-white'
-  iconColor?: string;     // Tailwind class for back button icon color
-  children?: React.ReactNode; // Extra content below the title row (e.g. tabs, filters)
+  bgColor?: string;
+  textColor?: string;
+  iconColor?: string;
+  children?: React.ReactNode;
 }
 
-/**
- * Reusable page header with back button and title.
- * Optionally accepts children for sub-header content (tabs, filters, etc.)
- */
-const Header: React.FC<HeaderProps> = ({
-  title,
-  bgColor = 'bg-white',
-  textColor = 'text-text-main',
-  iconColor = 'text-text-secondary',
-  children,
-}) => {
+const Header: React.FC<HeaderProps> = ({ title, children }) => {
   const navigate = useNavigate();
 
   return (
-    <header className={`flex flex-col px-4 pt-8 pb-3 ${bgColor} shadow-[0_2px_10px_rgb(0,0,0,0.02)] z-10 rounded-b-2xl shrink-0`}>
-      <div className="flex items-center">
-        {/* Back Button */}
+    <header className="flex flex-col px-4 pt-10 pb-3 bg-white z-10 shrink-0 rounded-b-[28px] shadow-[0_6px_24px_rgba(249,115,22,0.13)] border-b border-primary-100">
+      <div className="flex items-center gap-3">
         <button
           onClick={() => navigate(-1)}
-          className="w-8 h-8 flex items-center justify-center rounded-full bg-bg-base text-text-secondary active:scale-95 transition-transform"
+          className="w-8 h-8 flex items-center justify-center rounded-full bg-primary-50 border border-primary-200 text-primary-600 shrink-0 transition-all active:scale-90 hover:bg-primary-100"
         >
-          <ChevronLeft className={`w-5 h-5 ${iconColor}`} />
+          <ChevronLeft className="w-5 h-5" />
         </button>
-
-        {/* Title */}
-        <h1 className={`flex-1 text-center text-[14px] font-bold ${textColor} pr-8`}>
+        <h1 className="flex-1 text-[15px] font-bold text-text-main tracking-tight pr-8">
           {title}
         </h1>
       </div>
-      {children}
+
+      {children && (
+        <div className="mt-2">
+          {children}
+        </div>
+      )}
     </header>
   );
 };

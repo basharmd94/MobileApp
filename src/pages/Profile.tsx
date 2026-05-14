@@ -1,6 +1,6 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { LogOut, User } from 'lucide-react';
+import { LogOut, ChevronLeft } from 'lucide-react';
 import { Card } from '../components';
 import { useCurrentUser } from '../hooks/useCurrentUser';
 import FullPageLoader from '../components/FullPageLoader';
@@ -26,21 +26,24 @@ export default function Profile() {
 
   return (
     <div className="min-h-[100dvh] bg-bg-base flex flex-col pb-16 relative max-w-md mx-auto shadow-2xl overflow-hidden">
-      {/* Top Bar */}
-      <header className="flex items-center justify-between px-4 pt-8 pb-3 bg-base shadow-[0_2px_10px_rgb(0,0,0,0.02)] z-10 rounded-b-2xl">
-        <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary">
-            <User className="w-4 h-4" />
+      {/* Header — matches MobileTopBar / Header design */}
+      <header className="flex items-center justify-between px-4 pt-10 pb-4 bg-white z-10 shrink-0 rounded-b-[28px] shadow-[0_6px_24px_rgba(249,115,22,0.13)] border-b border-primary-100">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-full bg-primary-500 flex items-center justify-center text-white font-bold text-[13px] shrink-0 shadow-md shadow-primary/30">
+            {user?.username?.slice(0, 2).toUpperCase() || '?'}
           </div>
           <div>
-            <p className="text-[9px] font-bold text-text-muted uppercase tracking-wider">Profile</p>
-            <h1 className="text-[13px] font-bold text-text-main leading-tight truncate max-w-[120px]">
+            <p className="text-[9.5px] font-semibold text-text-muted uppercase tracking-widest leading-none mb-0.5">Profile</p>
+            <h1 className="text-[14px] font-bold text-text-main leading-tight truncate max-w-[160px]">
               {user?.username || 'User'}
             </h1>
           </div>
         </div>
-        <button onClick={() => navigate(-1)} className="text-[11px] font-bold text-primary">
-          Back
+        <button
+          onClick={() => navigate(-1)}
+          className="w-9 h-9 flex items-center justify-center rounded-full bg-primary-50 border border-primary-200 text-primary-600 transition-all active:scale-90 hover:bg-primary-100"
+        >
+          <ChevronLeft className="w-5 h-5" />
         </button>
       </header>
 

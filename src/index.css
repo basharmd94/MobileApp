@@ -69,6 +69,13 @@
   --color-warning: #F59E0B;
   --color-error: #EF4444;
   --color-info: #0EA5E9;
+
+  /* Header gradient tokens */
+  --color-header-from: #EA580C;  /* orange-600 */
+  --color-header-to: #C2410C;    /* orange-700 */
+  --color-header-accent: #FB923C; /* orange-400 – icon ring tint */
+  --color-header-glass: rgba(255,255,255,0.12);
+  --color-header-glass-border: rgba(255,255,255,0.20);
 }
 
 body {
@@ -84,4 +91,50 @@ body {
 * {
   -ms-overflow-style: none; /* IE and Edge */
   scrollbar-width: none; /* Firefox */
+}
+
+/**
+ * Responsive page root — replaces the fixed "max-w-md mx-auto" mobile-only cap.
+ * On small screens: full width (native app feel).
+ * On medium+: expands naturally, content max-width is controlled per-section.
+ */
+.page-root {
+  min-height: 100dvh;
+  height: 100dvh;
+  background-color: var(--color-bg-base);
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  overflow: hidden;
+}
+
+/**
+ * Responsive content wrapper — centers and limits content width on wide screens.
+ */
+.page-content {
+  width: 100%;
+  max-width: 1280px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+/**
+ * Responsive card grid — single column on mobile, multi-column on wider screens.
+ */
+.card-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1rem;
+}
+
+@media (min-width: 768px) {
+  .card-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (min-width: 1280px) {
+  .card-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
 }
