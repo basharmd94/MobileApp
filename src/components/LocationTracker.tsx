@@ -18,6 +18,11 @@ type JwtPayload = {
   business_id?: string | number;
 };
 
+type CachedUser = {
+  username?: string;
+  user_id?: string;
+};
+
 export type LocationPayload = {
   username: string;
   name: string;
@@ -73,17 +78,24 @@ function getTrackingIdentity(): { username: string; name: string; businessId: nu
     return null;
   }
 
-  // Prefer the human-readable login username for the API payload.
-  const username = payload.username || payload.user_id;
+  // Fall back to cached user data when a token field is missing in offline scenarios.
+  const cachedUserRaw = localStorage.getItem('cachedUser');
+  const cachedUser: CachedUser | null = cachedUserRaw ? JSON.parse(cachedUserRaw) as CachedUser : null;
+
+  // The API expects the employee/user ID in `username`.
+  const username = payload.user_id || cachedUser?.user_id;
+
+  // The API expects the login name in `name`.
+  const name = payload.username || cachedUser?.username;
   const businessId = Number(payload.businessId ?? payload.business_id ?? 0);
 
-  if (!username || !Number.isFinite(businessId) || businessId <= 0) {
+  if (!username || !name || !Number.isFinite(businessId) || businessId <= 0) {
     return null;
   }
 
   return {
     username,
-    name: username,
+    name,
     businessId,
   };
 }
