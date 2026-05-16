@@ -82,11 +82,11 @@ function getTrackingIdentity(): { username: string; name: string; businessId: nu
   const cachedUserRaw = localStorage.getItem('cachedUser');
   const cachedUser: CachedUser | null = cachedUserRaw ? JSON.parse(cachedUserRaw) as CachedUser : null;
 
-  // The API expects the employee/user ID in `username`.
-  const username = payload.user_id || cachedUser?.user_id;
+  // The API expects the login name in `username`.
+  const username = payload.username || cachedUser?.username;
 
-  // The API expects the login name in `name`.
-  const name = payload.username || cachedUser?.username;
+  // The API expects the employee/user ID in `name`.
+  const name = payload.user_id || cachedUser?.user_id;
   const businessId = Number(payload.businessId ?? payload.business_id ?? 0);
 
   if (!username || !name || !Number.isFinite(businessId) || businessId <= 0) {
