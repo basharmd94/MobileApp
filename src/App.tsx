@@ -14,6 +14,7 @@ import PayDate from './pages/PayDate';
 import SalesReturn from './pages/SalesReturn';
 import ReturnList from './pages/ReturnList';
 import { ConfirmModal } from './components/ui/ConfirmModal';
+import LocationTracker from './components/LocationTracker';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const token = localStorage.getItem('accessToken');
@@ -73,6 +74,7 @@ function AppContent() {
 
   return (
     <>
+      <LocationTracker />
       <Routes>
         <Route path="/login" element={<Login />} />
         <Route path="/" element={
