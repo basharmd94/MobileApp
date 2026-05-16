@@ -1,5 +1,7 @@
 import api, { clearApiCache } from './api';
 
+const AUTH_STATE_EVENT = 'auth-state-changed';
+
 export const login = async (username?: string, password?: string) => {
     if (!username || !password) {
         throw new Error('Username and password are required');
@@ -20,6 +22,9 @@ export const login = async (username?: string, password?: string) => {
             localStorage.setItem('refreshToken', response.data.refresh_token);
         }
 
+        // Notify background services, such as location tracking, that authentication is now available.
+        window.dispatchEvent(new Event(AUTH_STATE_EVENT));
+
         return response.data;
     } catch (error: any) {
         if (error.response?.data?.detail) {
@@ -37,12 +42,16 @@ export const logout = async () => {
         localStorage.removeItem('accessToken');
         localStorage.removeItem('refreshToken');
         clearApiCache();
+        // Notify background services so they can stop authenticated work and clear timers.
+        window.dispatchEvent(new Event(AUTH_STATE_EVENT));
         return response.data;
     } catch (error) {
         // Even if logout fails on server, clear local state
         localStorage.removeItem('accessToken');
         localStorage.removeItem('refreshToken');
         clearApiCache();
+        // Notify background services even when the server logout fails because local auth is gone.
+        window.dispatchEvent(new Event(AUTH_STATE_EVENT));
         throw error;
     }
 };

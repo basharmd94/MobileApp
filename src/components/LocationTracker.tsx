@@ -6,10 +6,12 @@ import { Preferences } from '@capacitor/preferences';
 import api from '../api';
 
 const API_URL = '/location/create';
+const FOLLOW_UP_DELAY_MS = 180_000;
 const GPS_TIMEOUT_MS = 10_000;
 const API_TIMEOUT_MS = 5_000;
 const PENDING_QUEUE_KEY = 'pending_locations';
 const LAST_KNOWN_LOCATION_KEY = 'last_known_location';
+const AUTH_STATE_EVENT = 'auth-state-changed';
 
 type JwtPayload = {
   username?: string;
@@ -277,6 +279,7 @@ async function flushPendingQueue(): Promise<void> {
  */
 export default function LocationTracker() {
   const isProcessingRef = useRef(false);
+  const followUpTimeoutRef = useRef<number | null>(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -335,15 +338,65 @@ export default function LocationTracker() {
     };
 
     /**
-     * When the app becomes active again, retry the full cycle for reopen/resume scenarios.
+     * Cancel any queued follow-up request when auth state or app visibility changes.
      */
-    const handleAppStateChange = async ({ isActive }: { isActive: boolean }) => {
-      if (isActive) {
-        await runTrackingCycle();
+    const clearFollowUpTimeout = () => {
+      if (followUpTimeoutRef.current !== null) {
+        window.clearTimeout(followUpTimeoutRef.current);
+        followUpTimeoutRef.current = null;
       }
     };
 
-    void runTrackingCycle();
+    /**
+     * Start a fresh tracking session for the current open app state.
+     * Each session sends immediately and schedules one follow-up after 3 minutes.
+     */
+    const startTrackingSession = () => {
+      clearFollowUpTimeout();
+
+      if (!getTrackingIdentity()) {
+        return;
+      }
+
+      void runTrackingCycle();
+
+      followUpTimeoutRef.current = window.setTimeout(() => {
+        if (!isMounted || !getTrackingIdentity()) {
+          return;
+        }
+
+        void runTrackingCycle();
+        followUpTimeoutRef.current = null;
+      }, FOLLOW_UP_DELAY_MS);
+    };
+
+    /**
+     * React immediately to a successful login or logout in the current app session.
+     */
+    const handleAuthStateChange = () => {
+      if (!getTrackingIdentity()) {
+        clearFollowUpTimeout();
+        return;
+      }
+
+      startTrackingSession();
+    };
+
+    /**
+     * When the app becomes active again, restart the 2-send session.
+     */
+    const handleAppStateChange = async ({ isActive }: { isActive: boolean }) => {
+      if (isActive) {
+        startTrackingSession();
+        return;
+      }
+
+      clearFollowUpTimeout();
+    };
+
+    startTrackingSession();
+
+    window.addEventListener(AUTH_STATE_EVENT, handleAuthStateChange);
 
     let appStateListener: Promise<PluginListenerHandle> | null = null;
 
@@ -353,6 +406,8 @@ export default function LocationTracker() {
 
     return () => {
       isMounted = false;
+      clearFollowUpTimeout();
+      window.removeEventListener(AUTH_STATE_EVENT, handleAuthStateChange);
 
       if (appStateListener) {
         void appStateListener.then((listener) => listener.remove());
