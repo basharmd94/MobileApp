@@ -1,9 +1,19 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Capacitor, PluginListenerHandle } from '@capacitor/core';
 import { App as CapacitorApp } from '@capacitor/app';
 import { Geolocation, PermissionStatus, Position } from '@capacitor/geolocation';
 import { Preferences } from '@capacitor/preferences';
 import api from '../api';
+import { Card } from './ui/Card';
+import { Button } from './ui/Button';
+
+declare global {
+  interface Window {
+    NativeSettings?: {
+      openAppSettings?: () => void;
+    };
+  }
+}
 
 const API_URL = '/location/create';
 const FOLLOW_UP_DELAY_MS = 180_000;
@@ -210,12 +220,6 @@ async function ensureLocationPermission(): Promise<boolean> {
  * Read a single GPS position with a strict timeout so the UI never hangs.
  */
 async function getCurrentPosition(): Promise<Position | null> {
-  const hasPermission = await ensureLocationPermission();
-  if (!hasPermission) {
-    console.warn('Location permission was not granted.');
-    return null;
-  }
-
   try {
     return await Geolocation.getCurrentPosition({
       enableHighAccuracy: true,
@@ -280,6 +284,19 @@ async function flushPendingQueue(): Promise<void> {
 export default function LocationTracker() {
   const isProcessingRef = useRef(false);
   const followUpTimeoutRef = useRef<number | null>(null);
+  const [showPermissionPrompt, setShowPermissionPrompt] = useState(false);
+
+  /**
+   * Route the user to the app settings screen so they can manually enable location access.
+   */
+  const openLocationSettings = () => {
+    if (Capacitor.isNativePlatform() && window.NativeSettings?.openAppSettings) {
+      window.NativeSettings.openAppSettings();
+      return;
+    }
+
+    console.warn('Native settings navigation is only available on the mobile app.');
+  };
 
   useEffect(() => {
     let isMounted = true;
@@ -300,6 +317,14 @@ export default function LocationTracker() {
       isProcessingRef.current = true;
 
       try {
+        const hasPermission = await ensureLocationPermission();
+        if (!hasPermission) {
+          setShowPermissionPrompt(true);
+          return;
+        }
+
+        setShowPermissionPrompt(false);
+
         const position = await getCurrentPosition();
         if (!position) {
           return;
@@ -355,6 +380,7 @@ export default function LocationTracker() {
       clearFollowUpTimeout();
 
       if (!getTrackingIdentity()) {
+        setShowPermissionPrompt(false);
         return;
       }
 
@@ -376,6 +402,7 @@ export default function LocationTracker() {
     const handleAuthStateChange = () => {
       if (!getTrackingIdentity()) {
         clearFollowUpTimeout();
+        setShowPermissionPrompt(false);
         return;
       }
 
@@ -415,5 +442,27 @@ export default function LocationTracker() {
     };
   }, []);
 
-  return null;
+  if (!showPermissionPrompt) {
+    return null;
+  }
+
+  return (
+    <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+      <Card className="w-full max-w-sm !p-5 !rounded-2xl shadow-2xl">
+        <h3 className="text-lg font-bold text-text-main mb-2">
+          Location Permission Required
+        </h3>
+        <p className="text-sm text-text-muted mb-6">
+          You must allow location access to continue using this app. Please open app settings and turn on location permission.
+        </p>
+        <Button
+          variant="primary"
+          className="w-full !py-2.5"
+          onClick={openLocationSettings}
+        >
+          Open Settings
+        </Button>
+      </Card>
+    </div>
+  );
 }
