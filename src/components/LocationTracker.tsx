@@ -193,9 +193,21 @@ function buildLocationPayload(position: Position): LocationPayload | null {
 }
 
 /**
+ * Check if location tracking is enabled (not in development mode).
+ */
+function isLocationTrackingEnabled(): boolean {
+  return import.meta.env.VITE_ENVIRONMENT !== 'development';
+}
+
+/**
  * Request location permission only when needed and stop cleanly when denied.
  */
 async function ensureLocationPermission(): Promise<boolean> {
+  // Skip location permission in development mode
+  if (!isLocationTrackingEnabled()) {
+    return true;
+  }
+
   try {
     const currentPermissions: PermissionStatus = await Geolocation.checkPermissions();
     if (
@@ -306,6 +318,12 @@ export default function LocationTracker() {
      */
     const runTrackingCycle = async () => {
       if (!isMounted || isProcessingRef.current) {
+        return;
+      }
+
+      // Skip tracking entirely in development mode
+      if (!isLocationTrackingEnabled()) {
+        setShowPermissionPrompt(false);
         return;
       }
 

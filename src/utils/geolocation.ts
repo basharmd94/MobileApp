@@ -5,9 +5,16 @@ import { Capacitor } from '@capacitor/core';
  * Get current device location using Capacitor Geolocation plugin.
  * This ensures proper native permission prompts on Android/iOS.
  * Falls back to {lat: 0, lng: 0} on error or if denied.
+ * Skips permission requests entirely in development mode.
  */
 export const getCurrentLocation = async (): Promise<{ lat: number; lng: number }> => {
   try {
+    // Skip geolocation entirely in development mode
+    if (import.meta.env.VITE_ENVIRONMENT === 'development') {
+      console.debug('Skipping geolocation in development mode');
+      return { lat: 0, lng: 0 };
+    }
+
     // If running as a native Android/iOS app, request permissions first
     if (Capacitor.isNativePlatform()) {
       const permissionStatus = await Geolocation.checkPermissions();
