@@ -212,6 +212,12 @@ export default function DeliveryOrders() {
                   )}
                   <div className="flex gap-2 mt-3 pt-3 border-t border-orange-200/50">
                     <button onClick={() => navigate('/pay-date', { state: { order } })} className="flex-1 py-2 text-[10px] font-bold text-orange-600 bg-orange-50 border border-orange-200 rounded-lg hover:bg-orange-100 transition-colors">Pay Date {order.xdatepay ? `(${order.xdatepay})` : ''}</button>
+                    <button
+                      onClick={() => navigate('/payment', { state: { order } })}
+                      className="flex-1 py-2 text-[10px] font-bold text-emerald-600 bg-emerald-50 border border-emerald-200 rounded-lg hover:bg-emerald-100 transition-colors"
+                    >
+                      Payment
+                    </button>
                     <button onClick={() => navigate('/sales-return', { state: { order } })} className="flex-1 py-2 text-[10px] font-bold text-slate-600 bg-slate-50 border border-slate-200 rounded-lg hover:bg-slate-100 transition-colors">Return</button>
                   </div>
                 </div>

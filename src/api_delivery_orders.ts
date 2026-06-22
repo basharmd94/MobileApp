@@ -24,6 +24,8 @@ export interface DeliveryOrder {
   netamt: number;
   xdate: string;
   xdatepay: string | null;
+  xpaydate?: string | null;
+  xpaystatus?: string;
   items: DeliveryOrderLineItem[];
 }
 

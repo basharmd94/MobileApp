@@ -5,8 +5,10 @@ export interface Item {
   item_id: string;
   item_name: string;
   item_group: string;
+  stock_unit?: string;
   std_price: number;
   stock: number;
+  stock_classification?: string;
   xbin: string | null;
   min_disc_qty: number;
   disc_amt: number;

@@ -11,6 +11,7 @@ import RecVoucher from './pages/RecVoucher';
 import Feedback from './pages/Feedback';
 import DeliveryOrders from './pages/DeliveryOrders';
 import PayDate from './pages/PayDate';
+import Payment from './pages/Payment';
 import SalesReturn from './pages/SalesReturn';
 import ReturnList from './pages/ReturnList';
 import { ConfirmModal } from './components/ui/ConfirmModal';
@@ -125,6 +126,11 @@ function AppContent() {
         <Route path="/pay-date" element={
           <ProtectedRoute>
             <PayDate />
+          </ProtectedRoute>
+        } />
+        <Route path="/payment" element={
+          <ProtectedRoute>
+            <Payment />
           </ProtectedRoute>
         } />
         <Route path="/sales-return" element={

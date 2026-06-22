@@ -53,48 +53,55 @@ export function ItemSearch({
   /**
    * Get stock status based on quantity
    */
-  const getStockStatus = (stock: number | null | undefined): { 
+  const getStockStatus = (classification: string | null | undefined): { 
     label: string; 
     color: string; 
     bgColor: string;
     icon: React.ReactNode;
   } => {
-    // Handle null, undefined, or 0 stock
-    if (stock === null || stock === undefined || stock === 0) {
+    const normalized = (classification || '').trim();
+
+    if (normalized === 'Out of Stock') {
       return {
-        label: 'No Stock',
+        label: 'Out of Stock',
         color: 'text-red-600',
         bgColor: 'bg-red-50 border-red-200',
         icon: <AlertCircle className="w-3 h-3" />
       };
     }
     
-    // Low stock (1-30)
-    if (stock <= 30) {
+    if (normalized === 'Low Stock' || normalized === 'Low Stock NS') {
       return {
-        label: 'Low Stock',
+        label: normalized,
         color: 'text-amber-600',
         bgColor: 'bg-amber-50 border-amber-200',
         icon: <Circle className="w-3 h-3" />
       };
     }
     
-    // Medium stock (31-100)
-    if (stock <= 100) {
+    if (normalized === 'Medium Stock') {
       return {
-        label: 'In Stock',
+        label: 'Medium Stock',
         color: 'text-blue-600',
         bgColor: 'bg-blue-50 border-blue-200',
         icon: <Circle className="w-3 h-3" />
       };
     }
     
-    // Full stock (>100)
+    if (normalized === 'In Stock' || normalized === 'In Stock NS') {
+      return {
+        label: normalized,
+        color: 'text-green-600',
+        bgColor: 'bg-green-50 border-green-200',
+        icon: <CheckCircle2 className="w-3 h-3" />
+      };
+    }
+
     return {
-      label: 'Full Stock',
-      color: 'text-green-600',
-      bgColor: 'bg-green-50 border-green-200',
-      icon: <CheckCircle2 className="w-3 h-3" />
+      label: normalized || 'Unknown',
+      color: 'text-gray-600',
+      bgColor: 'bg-gray-50 border-gray-200',
+      icon: <Circle className="w-3 h-3" />
     };
   };
 
@@ -300,7 +307,7 @@ export function ItemSearch({
               ) : results.length > 0 ? (
                 <ul className="py-1.5 max-h-[70vh] overflow-y-auto">
                   {results.map((item, index) => {
-                    const stockStatus = getStockStatus(item.stock);
+                    const stockStatus = getStockStatus(item.stock_classification);
                     const discountInfo = getDiscountInfo(item);
                     const stockUnit = getStockUnit(item);
                     
