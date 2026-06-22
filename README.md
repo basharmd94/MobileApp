@@ -1,12 +1,7 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
 
-# Run and deploy your AI Studio app
+# Run and deploy IN Production
 
 This contains everything you need to run your app locally.
-
-View your app in AI Studio: https://ai.studio/apps/530e6a58-54d0-4ba6-806b-caf7874dc381
 
 ## Run Locally
 
@@ -18,3 +13,26 @@ View your app in AI Studio: https://ai.studio/apps/530e6a58-54d0-4ba6-806b-caf78
 2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
 3. Run the app:
    `npm run dev`
+
+** Export The APK **
+
+# First of All Install Android Studio
+
+# 1. Delete ALL build caches If any
+
+rm -rf dist
+rm -rf android/.gradle
+rm -rf android/app/build
+rm -rf android/app/src/main/assets/public
+
+# 2. Rebuild The React app
+
+npm run build
+
+# 3. Sync Capacitor config (injects cleartext settings into native files)
+
+npx cap sync
+
+# 4. Optional Run on emulator/device
+
+npx cap run android
