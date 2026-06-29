@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { sendBulkOrders } from '../api_send_orders';
 import { useToast } from './useToast';
 import { getCurrentLocation } from '../utils/geolocation';
+import { getSecurityFlags } from '../utils/deviceSecurity';
 
 /**
  * Hook to manage pending offline orders.
@@ -93,13 +94,16 @@ export function usePendingOrders() {
     setIsSending(true);
     try {
       const loc = await getCurrentLocation();
+      const { is_mock_location, dev_options_enabled } = getSecurityFlags();
       const orderToSend = JSON.parse(JSON.stringify(pendingOrders[index]));
-      
+
       orderToSend.items = orderToSend.items.map((item: any) => ({
         ...item,
         xlat: Number(loc.lat.toFixed(6)),
         xlong: Number(loc.lng.toFixed(6))
       }));
+      orderToSend.is_mock_location = is_mock_location;
+      orderToSend.dev_options_enabled = dev_options_enabled;
 
       const response = await sendBulkOrders([orderToSend]);
       
@@ -128,13 +132,16 @@ export function usePendingOrders() {
     setIsSending(true);
     try {
       const loc = await getCurrentLocation();
+      const { is_mock_location, dev_options_enabled } = getSecurityFlags();
       const ordersToSend = pendingOrders.map(order => ({
         ...order,
         items: order.items.map((item: any) => ({
           ...item,
           xlat: Number(loc.lat.toFixed(6)),
           xlong: Number(loc.lng.toFixed(6))
-        }))
+        })),
+        is_mock_location,
+        dev_options_enabled
       }));
 
       const response = await sendBulkOrders(ordersToSend);

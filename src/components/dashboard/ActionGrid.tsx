@@ -2,9 +2,10 @@ import ActionButton from './ActionButton';
 import type { ActionConfig } from './dashboard-actions';
 
 const ROW_META = [
-  { label: 'Order Placing', dotClass: 'bg-amber-400' },
+  { label: 'Order Placing',   dotClass: 'bg-amber-400' },
   { label: 'Delivery & Rec', dotClass: 'bg-indigo-400' },
-  { label: 'Return', dotClass: 'bg-emerald-400' },
+  { label: 'Return',         dotClass: 'bg-emerald-400' },
+  { label: 'Customer & Items', dotClass: 'bg-blue-400' },
 ];
 
 export default function ActionGrid({ actions }: { actions: ActionConfig[][] }) {

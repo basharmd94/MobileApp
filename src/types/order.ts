@@ -17,4 +17,6 @@ export interface OrderPayload {
   xcusadd: string;
   xcusname: string;
   zid: number;
+  is_mock_location?: boolean;
+  dev_options_enabled?: boolean;
 }

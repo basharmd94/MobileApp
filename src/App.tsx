@@ -14,6 +14,8 @@ import PayDate from './pages/PayDate';
 import Payment from './pages/Payment';
 import SalesReturn from './pages/SalesReturn';
 import ReturnList from './pages/ReturnList';
+import CustomerMaster from './pages/CustomerMaster';
+import ItemMaster from './pages/ItemMaster';
 import { ConfirmModal } from './components/ui/ConfirmModal';
 import LocationTracker from './components/LocationTracker';
 
@@ -141,6 +143,16 @@ function AppContent() {
         <Route path="/return-list" element={
           <ProtectedRoute>
             <ReturnList />
+          </ProtectedRoute>
+        } />
+        <Route path="/customers" element={
+          <ProtectedRoute>
+            <CustomerMaster />
+          </ProtectedRoute>
+        } />
+        <Route path="/items" element={
+          <ProtectedRoute>
+            <ItemMaster />
           </ProtectedRoute>
         } />
       </Routes>

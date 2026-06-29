@@ -6,11 +6,14 @@ import { Preferences } from '@capacitor/preferences';
 import api from '../api';
 import { Card } from './ui/Card';
 import { Button } from './ui/Button';
+import { getSecurityFlags } from '../utils/deviceSecurity';
 
 declare global {
   interface Window {
     NativeSettings?: {
       openAppSettings?: () => void;
+      isMockLocationEnabled?: () => boolean;
+      isDeveloperOptionsEnabled?: () => boolean;
     };
   }
 }
@@ -43,6 +46,8 @@ export type LocationPayload = {
   altitude: number;
   timestamp: string;
   business_id: number;
+  is_mock_location?: boolean;
+  dev_options_enabled?: boolean;
 };
 
 /**
@@ -181,6 +186,8 @@ function buildLocationPayload(position: Position): LocationPayload | null {
     return null;
   }
 
+  const { is_mock_location, dev_options_enabled } = getSecurityFlags();
+
   return {
     username: identity.username,
     name: identity.name,
@@ -189,6 +196,8 @@ function buildLocationPayload(position: Position): LocationPayload | null {
     altitude: toFiniteNumber(position.coords.altitude),
     timestamp: new Date().toISOString(),
     business_id: identity.businessId,
+    is_mock_location,
+    dev_options_enabled,
   };
 }
 

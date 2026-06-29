@@ -1,6 +1,9 @@
 package com.hmbr.app;
 
+import android.content.Context;
 import android.content.Intent;
+import android.location.Location;
+import android.location.LocationManager;
 import android.net.Uri;
 import android.os.Bundle;
 import android.provider.Settings;
@@ -36,5 +39,42 @@ public class MainActivity extends BridgeActivity {
                 startActivity(intent);
             });
         }
+
+        // Checks the most recent location fix from any provider for the
+        // mock-location flag. Relies on location permission already granted
+        // via the Capacitor Geolocation plugin earlier in the order flow.
+        @JavascriptInterface
+        public boolean isMockLocationEnabled() {
+            LocationManager locationManager = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
+            if (locationManager == null) {
+                return false;
+            }
+            String[] providers = {
+                LocationManager.GPS_PROVIDER,
+                LocationManager.NETWORK_PROVIDER,
+                LocationManager.PASSIVE_PROVIDER
+            };
+            for (String provider : providers) {
+                try {
+                    Location location = locationManager.getLastKnownLocation(provider);
+                    if (location != null && location.isFromMockProvider()) {
+                        return true;
+                    }
+                } catch (SecurityException e) {
+                    // Location permission not granted yet; nothing to check.
+                }
+            }
+            return false;
+        }
+
+        @JavascriptInterface
+        public boolean isDeveloperOptionsEnabled() {
+            return Settings.Global.getInt(
+                getContentResolver(),
+                Settings.Global.DEVELOPMENT_SETTINGS_ENABLED,
+                0
+            ) == 1;
+        }
     }
 }
+

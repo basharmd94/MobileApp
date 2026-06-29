@@ -2,6 +2,7 @@ import {
   MessageSquare, Receipt, Package, 
   RotateCcw, List, Sparkles,
   Clock, CheckCircle2, Ban,
+  Users, Box,
   type LucideIcon 
 } from 'lucide-react';
 
@@ -27,10 +28,16 @@ export const DASHBOARD_ACTIONS: ActionConfig[][] = [
     { id: 'rec-voucher', icon: Receipt,       label: 'Rec Voucher', color: 'orange', route: '/rec-voucher' },
     { id: 'feedback',    icon: MessageSquare, label: 'Feedback',    color: 'blue',   route: '/feedback' },
   ],
-  // Row 3 — Return
+  // Row 3 — Return & Masters
   [
-    { id: 'return',      icon: RotateCcw, label: 'Return',      color: 'cyan', route: '/delivery-orders' },
-    { id: 'return-list', icon: List,      label: 'Return List', color: 'teal', route: '/return-list' },
-    { id: 'coming-soon', icon: Sparkles,  label: 'Coming Soon', color: 'indigo', },
+    { id: 'return',      icon: RotateCcw, label: 'Return',      color: 'cyan',   route: '/delivery-orders' },
+    { id: 'return-list', icon: List,      label: 'Return List', color: 'teal',   route: '/return-list' },
+    { id: 'coming-soon', icon: Sparkles,  label: 'Coming Soon', color: 'indigo' },
   ],
-];
+  // Row 4 — Master Data
+  [
+    { id: 'customers',   icon: Users,     label: 'Customers',   color: 'blue',   route: '/customers' },
+    { id: 'items',       icon: Box,       label: 'Items',       color: 'teal',   route: '/items' },
+    { id: 'coming-soon-2', icon: Sparkles, label: 'Coming Soon', color: 'indigo' },
+  ],
+];
