@@ -9,9 +9,13 @@ import BusinessTabs from '../components/BusinessTabs';
 import LoadMoreButton from '../components/LoadMoreButton';
 import { useCurrentUser } from '../hooks/useCurrentUser';
 
-// ─── MODIFIED: Use empty string instead of 'CUS' ───
-// The backend will return all customers when customer param is not sent
-const DEFAULT_QUERY = '';  // ← Changed from 'CUS' to ''
+// Default query — the backend requires at least 3 chars to return
+// any results. "CUS" is the universal prefix that matches every
+// customer record, so the initial load and "Load More" both return
+// the full list. The search overlay (CustomerSearch) uses the user's
+// own typed query instead, which is why typing in the input box
+// already works even when this default is in effect.
+const DEFAULT_QUERY = 'CUS';
 const LIMIT = 10;
 
 export default function CustomerMaster() {
@@ -39,11 +43,11 @@ export default function CustomerMaster() {
       else setLoading(true);
 
       try {
-        // ─── MODIFIED: Only send customer filter if DEFAULT_QUERY has 3+ chars ───
-        // Since DEFAULT_QUERY is now '', the API will return all customers
+        // Always pass the customer param — the backend requires at
+        // least 3 characters or it returns an empty array. The
+        // "CUS" prefix is the universal one that matches everything.
         const data = await getAllCustomers(activeTab, employeeId, {
-          // Only include customer param if it has 3+ characters
-          ...(DEFAULT_QUERY && DEFAULT_QUERY.trim().length >= 3 ? { customer: DEFAULT_QUERY } : {}),
+          customer: DEFAULT_QUERY,
           limit: LIMIT,
           offset: currentOffset,
         });
