@@ -12,6 +12,13 @@ export interface CustomerSearchProps {
   disabled?: boolean;
 }
 
+/**
+ * Hard ceiling for a single search request. If the server is slow or the
+ * mobile network stalls, we abort and clear the spinner after this many ms
+ * so the UI is NEVER stuck in an infinite-loading state.
+ */
+const REQUEST_TIMEOUT_MS = 15000;
+
 export function CustomerSearch({
   zid,
   employeeId,
@@ -24,10 +31,27 @@ export function CustomerSearch({
   const [query, setQuery] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [results, setResults] = useState<Customer[]>([]);
-  
+
   const fieldRef = useRef<HTMLInputElement>(null);
   const overlayInputRef = useRef<HTMLInputElement>(null);
   const debouncedQuery = useDebounce(query, 500);
+
+  /**
+   * The two refs below are the "single source of truth" for which fetch
+   * is allowed to mutate state. Each new effect run gets a fresh
+   * AbortController and an incremented request id. Stale closures lose
+   * both races, so they can never resurrect the spinner.
+   */
+  const abortControllerRef = useRef<AbortController | null>(null);
+  const fetchIdRef = useRef(0);
+
+  // Helper to cancel whatever is currently in flight. Safe to call multiple times.
+  const cancelInFlight = () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
+  };
 
   const displayText = value ? `${value.xcus} - ${value.xorg}` : '';
 
@@ -52,47 +76,111 @@ export function CustomerSearch({
     return () => window.cancelAnimationFrame(raf);
   }, [isOpen]);
 
-  // Fetch logic
+  // ─── Fetch logic ──────────────────────────────────────────────────────────
+  // Deps are INTENTIONALLY limited to debounced values + identity flags.
+  // We do NOT depend on `query` (would re-fire on every keystroke) or
+  // `value` (re-fires whenever the selected customer changes). The overlay
+  // closes on selection, so `isOpen` going false already short-circuits
+  // anything we would otherwise have done.
   useEffect(() => {
-    if (!isOpen || debouncedQuery.trim().length < 3 || disabled || !employeeId) {
-      if (debouncedQuery.trim().length < 3) {
+    // 1) Always tear down the previous fetch first. This guarantees that
+    //    at most one network request is in flight per overlay session.
+    cancelInFlight();
+
+    const trimmed = debouncedQuery.trim();
+
+    // 2) Early-return paths: nothing should be loading in any of these.
+    if (!isOpen || trimmed.length < 3 || disabled || !employeeId) {
+      if (trimmed.length < 3) {
         setResults([]);
       }
+      setIsLoading(false);
       return;
     }
-    
-    let isActive = true;
 
-    const fetchCustomer = async () => {
-      setIsLoading(true);
+    // 3) Set up the new fetch. Each gets its own AbortController and id.
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+    const fetchId = ++fetchIdRef.current;
+
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
+
+    setIsLoading(true);
+
+    const runFetch = async () => {
       try {
-        const data = await searchCustomers(zid, employeeId, debouncedQuery.trim());
-        if (isActive) {
-          // Handle both single object and array responses to be scalable
-          setResults(Array.isArray(data) ? data : (data && (data as any).xcus ? [data] : []));
+        const data = await searchCustomers(
+          zid,
+          employeeId,
+          trimmed,
+          10,
+          0,
+          controller.signal
+        );
+        // Bail if a newer fetch took over OR we were cancelled.
+        if (controller.signal.aborted || fetchId !== fetchIdRef.current) {
+          return;
         }
-      } catch (err) {
-        if (isActive) {
-          setResults([]);
+        setResults(
+          Array.isArray(data) ? data : (data && (data as any).xcus ? [data] : [])
+        );
+      } catch (err: any) {
+        // Aborted by us / by the user — not a real error, just leave state alone.
+        if (
+          err?.name === 'CanceledError' ||
+          err?.code === 'ERR_CANCELED' ||
+          controller.signal.aborted
+        ) {
+          return;
         }
+        if (fetchId !== fetchIdRef.current) return;
+        setResults([]);
       } finally {
-        if (isActive) {
+        if (timeoutId) {
+          clearTimeout(timeoutId);
+          timeoutId = null;
+        }
+        // Only the currently-active fetch is allowed to clear the spinner.
+        if (fetchId === fetchIdRef.current) {
           setIsLoading(false);
         }
       }
     };
 
-    fetchCustomer();
+    // 4) Hard ceiling. If the network is wedged, abort and unstick the UI.
+    timeoutId = setTimeout(() => {
+      if (fetchId === fetchIdRef.current && !controller.signal.aborted) {
+        controller.abort();
+        // Clear the spinner immediately so the user isn't left hanging.
+        setIsLoading(false);
+      }
+    }, REQUEST_TIMEOUT_MS);
 
+    runFetch();
+
+    // 5) Cleanup runs when deps change OR component unmounts. Abort the
+    //    in-flight request so the connection pool doesn't fill up.
     return () => {
-      isActive = false;
+      controller.abort();
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+        timeoutId = null;
+      }
     };
-  }, [debouncedQuery, zid, employeeId, isOpen, disabled, value, query]);
+  }, [debouncedQuery, zid, employeeId, isOpen, disabled]);
+
+  // ─── Component-level unmount safety net ──────────────────────────────────
+  useEffect(() => {
+    return () => {
+      cancelInFlight();
+    };
+  }, []);
 
   const openOverlay = () => {
     if (disabled) {
       return;
     }
+    cancelInFlight();
     setIsOpen(true);
     setQuery('');
     setResults([]);
@@ -100,6 +188,7 @@ export function CustomerSearch({
   };
 
   const closeOverlay = () => {
+    cancelInFlight();
     setIsOpen(false);
     setQuery('');
     setResults([]);
@@ -133,11 +222,11 @@ export function CustomerSearch({
           readOnly
           onClick={openOverlay}
         />
-        
+
         <div className="absolute inset-y-0 right-0 pr-2.5 flex items-center">
           {displayText ? (
-            <button 
-              type="button" 
+            <button
+              type="button"
               className="p-1 rounded-full text-text-muted hover:text-text-main hover:bg-gray-100 transition-colors focus:outline-none"
               onClick={clearSelection}
               disabled={disabled}
@@ -152,7 +241,7 @@ export function CustomerSearch({
       {isOpen && (
         <div className="fixed inset-0 z-[110] bg-bg-base flex flex-col">
           <header className="flex items-center px-4 pt-8 pb-3 bg-bg-card shadow-[0_2px_10px_rgb(0,0,0,0.02)] z-10 rounded-b-2xl shrink-0">
-            <button 
+            <button
               type="button"
               onClick={closeOverlay}
               className="w-8 h-8 flex items-center justify-center rounded-full bg-bg-base text-text-secondary active:scale-95 transition-transform"

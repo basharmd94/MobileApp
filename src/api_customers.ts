@@ -9,7 +9,20 @@ export interface Customer {
   [key: string]: any;
 }
 
-export const searchCustomers = async (zid: string | number, employeeId: string, customerQuery: string, limit = 10, offset = 0): Promise<Customer[]> => {
+/**
+ * Search customers. Supports cancellation via AbortSignal — pass the
+ * current `AbortController.signal` so stale requests can be aborted when the
+ * user keeps typing. The server is the same; only one in-flight request
+ * per overlay session is ever allowed to "win".
+ */
+export const searchCustomers = async (
+  zid: string | number,
+  employeeId: string,
+  customerQuery: string,
+  limit = 10,
+  offset = 0,
+  signal?: AbortSignal
+): Promise<Customer[]> => {
     try {
         const response = await api.get(`/customers/all/${zid}`, {
             params: {
@@ -17,13 +30,18 @@ export const searchCustomers = async (zid: string | number, employeeId: string, 
                 employee_id: employeeId,
                 limit,
                 offset
-            }
+            },
+            signal,
         });
         return response.data;
     } catch (error: any) {
         // Handle 404 gracefully for search
         if (error.response?.status === 404) {
             return [];
+        }
+        // Aborted by caller — let the caller handle it (no state mutation).
+        if (error?.name === 'CanceledError' || error?.code === 'ERR_CANCELED') {
+            throw error;
         }
         throw error;
     }

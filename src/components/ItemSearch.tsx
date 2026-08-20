@@ -11,6 +11,13 @@ export interface ItemSearchProps {
   disabled?: boolean;
 }
 
+/**
+ * Hard ceiling for a single search request. If the server is slow or the
+ * mobile network stalls, we abort and clear the spinner after this many ms
+ * so the UI is NEVER stuck in an infinite-loading state.
+ */
+const REQUEST_TIMEOUT_MS = 15000;
+
 export function ItemSearch({
   zid,
   value,
@@ -22,10 +29,24 @@ export function ItemSearch({
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<Item[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  
+
   const debouncedQuery = useDebounce(query, 500);
   const fieldRef = useRef<HTMLInputElement>(null);
   const overlayInputRef = useRef<HTMLInputElement>(null);
+
+  /**
+   * Single source of truth for "which fetch is allowed to mutate state".
+   * Stale closures lose both races and can never resurrect the spinner.
+   */
+  const abortControllerRef = useRef<AbortController | null>(null);
+  const fetchIdRef = useRef(0);
+
+  const cancelInFlight = () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
+  };
 
   const displayText = value ? `${value.item_id} - ${value.item_name}` : '';
 
@@ -53,9 +74,9 @@ export function ItemSearch({
   /**
    * Get stock status based on quantity
    */
-  const getStockStatus = (classification: string | null | undefined): { 
-    label: string; 
-    color: string; 
+  const getStockStatus = (classification: string | null | undefined): {
+    label: string;
+    color: string;
     bgColor: string;
     icon: React.ReactNode;
   } => {
@@ -69,7 +90,7 @@ export function ItemSearch({
         icon: <AlertCircle className="w-3 h-3" />
       };
     }
-    
+
     if (normalized === 'Low Stock' || normalized === 'Low Stock NS') {
       return {
         label: normalized,
@@ -78,7 +99,7 @@ export function ItemSearch({
         icon: <Circle className="w-3 h-3" />
       };
     }
-    
+
     if (normalized === 'Medium Stock') {
       return {
         label: 'Medium Stock',
@@ -87,10 +108,10 @@ export function ItemSearch({
         icon: <Circle className="w-3 h-3" />
       };
     }
-    
+
     if (normalized === 'In Stock' || normalized === 'In Stock NS') {
       return {
-        label: normalized,
+        label: 'In Stock',
         color: 'text-green-600',
         bgColor: 'bg-green-50 border-green-200',
         icon: <CheckCircle2 className="w-3 h-3" />
@@ -131,7 +152,7 @@ export function ItemSearch({
   const getDiscountInfo = (item: Item): string | null => {
     const discAmt = formatDiscount(item.disc_amt);
     const minQty = formatMinDiscQty(item.min_disc_qty);
-    
+
     if (discAmt && minQty) {
       return `${discAmt} (${minQty})`;
     } else if (discAmt) {
@@ -153,46 +174,92 @@ export function ItemSearch({
     return stockUnit;
   };
 
-  // Fetch logic
+  // ─── Fetch logic ──────────────────────────────────────────────────────────
+  // Deps are INTENTIONALLY limited to debounced values + identity flags.
+  // We do NOT depend on `query` (would re-fire on every keystroke) or
+  // `value` (re-fires whenever the selected item changes). The overlay
+  // closes on selection, so `isOpen` going false already short-circuits
+  // anything we would otherwise have done.
   useEffect(() => {
-    if (!isOpen || debouncedQuery.trim().length < 2 || disabled) {
-      if (debouncedQuery.trim().length < 2) {
+    cancelInFlight();
+
+    const trimmed = debouncedQuery.trim();
+
+    if (!isOpen || trimmed.length < 2 || disabled) {
+      if (trimmed.length < 2) {
         setResults([]);
       }
+      setIsLoading(false);
       return;
     }
-    
-    let isActive = true;
 
-    const fetchItems = async () => {
-      setIsLoading(true);
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+    const fetchId = ++fetchIdRef.current;
+
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
+
+    setIsLoading(true);
+
+    const runFetch = async () => {
       try {
-        const data = await searchItems(zid, debouncedQuery.trim());
-        if (isActive) {
-          setResults(Array.isArray(data) ? data : []);
+        const data = await searchItems(zid, trimmed, 20, 0, controller.signal);
+        if (controller.signal.aborted || fetchId !== fetchIdRef.current) {
+          return;
         }
-      } catch (err) {
-        if (isActive) {
-          setResults([]);
+        setResults(Array.isArray(data) ? data : []);
+      } catch (err: any) {
+        if (
+          err?.name === 'CanceledError' ||
+          err?.code === 'ERR_CANCELED' ||
+          controller.signal.aborted
+        ) {
+          return;
         }
+        if (fetchId !== fetchIdRef.current) return;
+        setResults([]);
       } finally {
-        if (isActive) {
+        if (timeoutId) {
+          clearTimeout(timeoutId);
+          timeoutId = null;
+        }
+        if (fetchId === fetchIdRef.current) {
           setIsLoading(false);
         }
       }
     };
 
-    fetchItems();
-    
+    // Hard ceiling: never let the spinner get stuck forever.
+    timeoutId = setTimeout(() => {
+      if (fetchId === fetchIdRef.current && !controller.signal.aborted) {
+        controller.abort();
+        setIsLoading(false);
+      }
+    }, REQUEST_TIMEOUT_MS);
+
+    runFetch();
+
     return () => {
-      isActive = false;
+      controller.abort();
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+        timeoutId = null;
+      }
     };
-  }, [debouncedQuery, zid, isOpen, disabled, value, query]);
+  }, [debouncedQuery, zid, isOpen, disabled]);
+
+  // ─── Component-level unmount safety net ──────────────────────────────────
+  useEffect(() => {
+    return () => {
+      cancelInFlight();
+    };
+  }, []);
 
   const openOverlay = () => {
     if (disabled) {
       return;
     }
+    cancelInFlight();
     setIsOpen(true);
     setQuery('');
     setResults([]);
@@ -200,6 +267,7 @@ export function ItemSearch({
   };
 
   const closeOverlay = () => {
+    cancelInFlight();
     setIsOpen(false);
     setQuery('');
     setResults([]);
@@ -233,11 +301,11 @@ export function ItemSearch({
           readOnly
           onClick={openOverlay}
         />
-        
+
         <div className="absolute inset-y-0 right-0 pr-2.5 flex items-center">
           {displayText ? (
-            <button 
-              type="button" 
+            <button
+              type="button"
               className="text-text-muted hover:text-text-main focus:outline-none p-1 rounded-md hover:bg-gray-100"
               onClick={clearSelection}
               disabled={disabled}
@@ -251,7 +319,7 @@ export function ItemSearch({
       {isOpen && (
         <div className="fixed inset-0 z-[110] bg-bg-base flex flex-col">
           <header className="flex items-center px-4 pt-8 pb-3 bg-bg-card shadow-[0_2px_10px_rgb(0,0,0,0.02)] z-10 rounded-b-2xl shrink-0">
-            <button 
+            <button
               type="button"
               onClick={closeOverlay}
               className="w-8 h-8 flex items-center justify-center rounded-full bg-bg-base text-text-secondary active:scale-95 transition-transform"
@@ -282,8 +350,8 @@ export function ItemSearch({
                 {isLoading ? (
                   <Loader2 className="h-3.5 w-3.5 text-primary animate-spin" />
                 ) : query ? (
-                  <button 
-                    type="button" 
+                  <button
+                    type="button"
                     className="text-text-muted hover:text-text-main focus:outline-none p-1 rounded-md hover:bg-gray-100"
                     onClick={() => {
                       setQuery('');
@@ -310,7 +378,7 @@ export function ItemSearch({
                     const stockStatus = getStockStatus(item.stock_classification);
                     const discountInfo = getDiscountInfo(item);
                     const stockUnit = getStockUnit(item);
-                    
+
                     return (
                       <li key={item.item_id || index}>
                         <button
@@ -339,23 +407,23 @@ export function ItemSearch({
                                   ৳{item.std_price}
                                 </span>
                               </div>
-                              
+
                               <div className="flex items-center gap-1.5 flex-wrap">
                                 <span className="text-[10px] text-text-muted">{item.item_group}</span>
-                                
+
                                 {stockUnit && (
                                   <span className="text-[9px] text-text-muted bg-gray-100 px-1 py-0.5 rounded">
                                     {stockUnit}
                                   </span>
                                 )}
-                                
+
                                 {discountInfo && (
                                   <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[8px] font-bold bg-purple-100 border border-purple-200 text-purple-700">
                                     <Tag className="w-2.5 h-2.5" />
                                     {discountInfo}
                                   </span>
                                 )}
-                                
+
                                 <span className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[8px] font-bold border ${stockStatus.color} ${stockStatus.bgColor}`}>
                                   {stockStatus.icon}
                                   {stockStatus.label}

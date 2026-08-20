@@ -19,12 +19,17 @@ export interface Item {
  * Search items using the fast view endpoint
  * Uses the pre-computed final_items_view which is refreshed every hour
  * Only returns items with non-empty warehouse
+ *
+ * Pass an `AbortSignal` so the caller can cancel stale requests when the
+ * user keeps typing — this prevents the WebView connection pool from
+ * filling up and the loading spinner from getting stuck.
  */
 export const searchItems = async (
-  zid: string | number, 
-  searchQuery: string, 
-  limit = 20, 
-  offset = 0
+  zid: string | number,
+  searchQuery: string,
+  limit = 20,
+  offset = 0,
+  signal?: AbortSignal
 ): Promise<Item[]> => {
     try {
         // Only send item_name if it's at least 2 characters
@@ -32,16 +37,19 @@ export const searchItems = async (
             limit,
             offset
         };
-        
+
         if (searchQuery && searchQuery.trim().length >= 2) {
             params.item_name = searchQuery.trim();
         }
-        
-        const response = await api.get(`/items/all-view/${zid}`, { params });
+
+        const response = await api.get(`/items/all-view/${zid}`, { params, signal });
         return response.data;
     } catch (error: any) {
         if (error.response && error.response.status === 404) {
             return [];
+        }
+        if (error?.name === 'CanceledError' || error?.code === 'ERR_CANCELED') {
+            throw error;
         }
         throw error;
     }
