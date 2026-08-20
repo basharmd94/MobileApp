@@ -1,11 +1,12 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { User, Hash, Calendar, TrendingUp, Truck, CreditCard } from 'lucide-react';
+import { User, Hash, Calendar, TrendingUp, Truck, CreditCard, AlertTriangle, CheckCircle2, Edit3, Lock } from 'lucide-react';
 import Header from '../components/ui/Header';
 import { Button, ConfirmModal } from '../components';
 import Toast from '../components/ui/Toast';
 import { getBusinessName } from '../utils/business';
 import { updateDeliveryDates } from '../api_delivery_orders';
+import { isOnOrBeforeDay, isBeforeDay, isOnOrAfterDay, humanizeDate } from '../utils/dates';
 
 export default function PayDate() {
   const location = useLocation();
@@ -14,22 +15,64 @@ export default function PayDate() {
 
   const [deliveryDate, setDeliveryDate] = useState(order?.xdate || '');
   const [payDate, setPayDate] = useState(order?.xdatepay || '');
-  
-  // If the order already has a payDate from the DB, it's considered already updated
-  const isAlreadyUpdated = !!order?.xdatepay;
-  
+
+  // ─── Lock state ──────────────────────────────────────────────────────────
+  // The form is ONLY locked when the actual payment has been submitted
+  // (`xpaystatus === 'Send'`). Having an expected pay date set
+  // (`xdatepay`) is just the customer's promise and must NOT lock the
+  // form — the salesmen should be able to revise it (e.g. the customer
+  // calls and asks for an extension).
+  const isPaymentSubmitted = order?.xpaystatus === 'Send';
+  const isLocked = isPaymentSubmitted;
+
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
   const [errorToast, setErrorToast] = useState<string | null>(null);
   const [successToast, setSuccessToast] = useState<string | null>(null);
 
+  // ─── Validation ──────────────────────────────────────────────────────────
+  // Edge cases covered:
+  //  • delivery date empty / pay date empty  → block submit
+  //  • pay date BEFORE delivery date          → block submit (can't pay
+  //                                             before the goods are
+  //                                             delivered)
+  //  • pay date in the past                   → ALLOWED (customer
+  //                                             already paid or wants
+  //                                             to back-date a
+  //                                             promise) — we only
+  //                                             show an informational
+  //                                             note
+  //  • pay date == delivery date              → ALLOWED (same-day
+  //                                             payment)
+  //  • pay date in the future                 → ALLOWED (normal case)
+  const validation = useMemo(() => {
+    if (!deliveryDate || !payDate) {
+      return { ok: false, reason: 'Both dates are required.' };
+    }
+    if (isBeforeDay(payDate, deliveryDate)) {
+      return {
+        ok: false,
+        reason: 'Pay date cannot be earlier than the delivery date.',
+      };
+    }
+    return { ok: true, reason: '' };
+  }, [deliveryDate, payDate]);
+
+  const payDateInPast = useMemo(
+    () => Boolean(payDate) && isBeforeDay(payDate, new Date().toISOString().slice(0, 10)),
+    [payDate]
+  );
+
   const handleUpdate = () => {
-    if (!deliveryDate || !payDate) return;
+    if (!validation.ok) {
+      setErrorToast(validation.reason);
+      return;
+    }
     setIsConfirmModalOpen(true);
   };
 
   const executeUpdate = async () => {
-    if (!deliveryDate || !payDate) return;
+    if (!validation.ok) return;
     setIsSubmitting(true);
     setIsConfirmModalOpen(false);
     setErrorToast(null);
@@ -38,11 +81,11 @@ export default function PayDate() {
     try {
       const payload = {
         delivery_date: deliveryDate,
-        payment_date: payDate
+        payment_date: payDate,
       };
-      
+
       const res = await updateDeliveryDates(order.zid.toString(), order.xdornum, payload);
-      
+
       if (res.success) {
         setSuccessToast(res.message || 'Dates updated successfully');
         setTimeout(() => {
@@ -121,43 +164,79 @@ export default function PayDate() {
 
         {/* Date Inputs Card */}
         <div className="bg-bg-card border border-ui-border rounded-[16px] p-4 shadow-sm">
-          <h3 className="text-[12px] font-bold text-text-main mb-4 flex items-center gap-1.5">
-            <Calendar className="w-4 h-4 text-primary" />Update Dates
-          </h3>
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-[12px] font-bold text-text-main flex items-center gap-1.5">
+              <Calendar className="w-4 h-4 text-primary" />Update Dates
+            </h3>
+            {isPaymentSubmitted ? (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-[9px] font-bold text-emerald-700">
+                <Lock className="w-2.5 h-2.5" />Paid — locked
+              </span>
+            ) : order?.xdatepay ? (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-50 border border-amber-200 text-[9px] font-bold text-amber-700">
+                <Edit3 className="w-2.5 h-2.5" />Editable
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-blue-50 border border-blue-200 text-[9px] font-bold text-blue-700">
+                <CheckCircle2 className="w-2.5 h-2.5" />New
+              </span>
+            )}
+          </div>
+
           <div className="space-y-4">
             <div>
               <label className="flex items-center gap-2 text-[11px] font-bold text-text-main mb-2">
                 <Truck className="w-3.5 h-3.5 text-teal-500" />Delivery Date <span className="text-error">*</span>
               </label>
               <div className="relative">
-                <input type="date" value={deliveryDate} onChange={(e) => setDeliveryDate(e.target.value)} disabled={isAlreadyUpdated}
+                <input type="date" value={deliveryDate} onChange={(e) => setDeliveryDate(e.target.value)} disabled={isLocked}
                   className="w-full h-[42px] px-3 py-2 text-[13px] bg-bg-base border border-ui-border rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-200 focus:border-teal-300 transition-all text-text-main appearance-none disabled:opacity-60"
                   style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2314B8A6' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='4' width='18' height='18' rx='2' ry='2'%3E%3C/rect%3E%3Cline x1='16' y1='2' x2='16' y2='6'%3E%3C/line%3E%3Cline x1='8' y1='2' x2='8' y2='6'%3E%3C/line%3E%3Cline x1='3' y1='10' x2='21' y2='10'%3E%3C/line%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 12px center', paddingRight: '40px' }} />
               </div>
             </div>
             <div>
               <label className="flex items-center gap-2 text-[11px] font-bold text-text-main mb-2">
-                <CreditCard className="w-3.5 h-3.5 text-purple-500" />Pay Date <span className="text-error">*</span>
+                <CreditCard className="w-3.5 h-3.5 text-purple-500" />Expected Pay Date <span className="text-error">*</span>
               </label>
               <div className="relative">
-                <input type="date" value={payDate} onChange={(e) => setPayDate(e.target.value)} disabled={isAlreadyUpdated}
+                <input type="date" value={payDate} onChange={(e) => setPayDate(e.target.value)} disabled={isLocked} min={deliveryDate || undefined}
                   className="w-full h-[42px] px-3 py-2 text-[13px] bg-bg-base border border-ui-border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-200 focus:border-purple-300 transition-all text-text-main appearance-none disabled:opacity-60"
                   style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%238B5CF6' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='4' width='18' height='18' rx='2' ry='2'%3E%3C/rect%3E%3Cline x1='16' y1='2' x2='16' y2='6'%3E%3C/line%3E%3Cline x1='8' y1='2' x2='8' y2='6'%3E%3C/line%3E%3Cline x1='3' y1='10' x2='21' y2='10'%3E%3C/line%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 12px center', paddingRight: '40px' }} />
               </div>
+              <p className="text-[9.5px] text-text-muted mt-1 ml-1">
+                Customer's promised payment date. Payment can be collected any time <b>on or before</b> this day.
+              </p>
             </div>
           </div>
+
+          {/* Live validation feedback */}
+          {!validation.ok && (deliveryDate || payDate) && (
+            <div className="mt-3 p-2.5 rounded-[12px] border border-error/30 bg-error/5 flex items-start gap-2">
+              <AlertTriangle className="w-3.5 h-3.5 text-error shrink-0 mt-0.5" />
+              <p className="text-[11px] font-medium text-error leading-snug">{validation.reason}</p>
+            </div>
+          )}
+          {payDateInPast && validation.ok && (
+            <div className="mt-3 p-2.5 rounded-[12px] border border-amber-200 bg-amber-50 flex items-start gap-2">
+              <AlertTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0 mt-0.5" />
+              <p className="text-[11px] font-medium text-amber-800 leading-snug">
+                Pay date is in the past ({humanizeDate(payDate)}). Make sure this is intentional — the customer may have already paid.
+              </p>
+            </div>
+          )}
+
           {(deliveryDate || payDate) && (
             <div className="mt-4 p-3 bg-bg-base rounded-lg border border-ui-border space-y-2">
               {deliveryDate && (
                 <div className="flex items-center justify-between">
                   <span className="text-[10px] font-medium text-text-secondary flex items-center gap-1.5"><Truck className="w-3 h-3 text-teal-500" />Delivery Date</span>
-                  <span className="text-[11px] font-bold text-teal-600">{deliveryDate}</span>
+                  <span className="text-[11px] font-bold text-teal-600">{deliveryDate} <span className="text-text-muted font-normal">({humanizeDate(deliveryDate)})</span></span>
                 </div>
               )}
               {payDate && (
                 <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-medium text-text-secondary flex items-center gap-1.5"><CreditCard className="w-3 h-3 text-purple-500" />Pay Date</span>
-                  <span className="text-[11px] font-bold text-purple-600">{payDate}</span>
+                  <span className="text-[10px] font-medium text-text-secondary flex items-center gap-1.5"><CreditCard className="w-3 h-3 text-purple-500" />Expected Pay Date</span>
+                  <span className="text-[11px] font-bold text-purple-600">{payDate} <span className="text-text-muted font-normal">({humanizeDate(payDate)})</span></span>
                 </div>
               )}
             </div>
@@ -180,25 +259,31 @@ export default function PayDate() {
       </main>
 
       <div className="absolute bottom-0 left-0 right-0 p-4 bg-bg-card border-t border-ui-border shadow-[0_-4px_10px_rgb(0,0,0,0.02)] z-10 w-full md:max-w-3xl md:mx-auto">
-        <Button 
-          variant={isAlreadyUpdated ? "outline" : "primary"} 
-          size="lg" 
-          className={`w-full ${!isAlreadyUpdated ? 'shadow-lg shadow-primary/20' : ''}`} 
-          onClick={handleUpdate} 
-          disabled={isAlreadyUpdated || !deliveryDate || !payDate || isSubmitting} 
+        <Button
+          variant={isLocked ? "outline" : "primary"}
+          size="lg"
+          className={`w-full ${!isLocked && validation.ok ? 'shadow-lg shadow-primary/20' : ''}`}
+          onClick={handleUpdate}
+          disabled={isLocked || !validation.ok || isSubmitting}
           isLoading={isSubmitting}
         >
-          {isAlreadyUpdated ? 'Dates Already Updated' : 'Update Dates'}
+          {isLocked ? (
+            <><Lock className="w-3.5 h-3.5 mr-1.5" />Payment Already Submitted</>
+          ) : order?.xdatepay ? (
+            'Update Dates'
+          ) : (
+            'Save Dates'
+          )}
         </Button>
       </div>
 
-      <ConfirmModal 
-        isOpen={isConfirmModalOpen} 
-        title="Confirm Date Update" 
-        message={`Are you sure you want to update the dates for order ${order.xdornum}?`} 
-        onCancel={() => setIsConfirmModalOpen(false)} 
-        onConfirm={executeUpdate} 
-        isProcessing={isSubmitting} 
+      <ConfirmModal
+        isOpen={isConfirmModalOpen}
+        title={order?.xdatepay ? "Confirm Date Update" : "Confirm Dates"}
+        message={`Are you sure you want to update the dates for order ${order.xdornum}?`}
+        onCancel={() => setIsConfirmModalOpen(false)}
+        onConfirm={executeUpdate}
+        isProcessing={isSubmitting}
       />
       <Toast error={errorToast} success={successToast} />
     </div>

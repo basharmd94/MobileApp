@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { User, Hash, Calendar, TrendingUp, CreditCard, Banknote, MessageSquare } from 'lucide-react';
+import { User, Hash, Calendar, TrendingUp, CreditCard, Banknote, MessageSquare, AlertTriangle, CheckCircle2, Lock, Info } from 'lucide-react';
 import Header from '../components/ui/Header';
 import { Button, ConfirmModal } from '../components';
 import Toast from '../components/ui/Toast';
@@ -8,6 +8,7 @@ import { getBusinessName } from '../utils/business';
 import { createCustomerPayment } from '../api_payment';
 import { useCurrentUser } from '../hooks/useCurrentUser';
 import { useToast } from '../hooks/useToast';
+import { isOnOrAfterDay, isBeforeDay, isOnOrBeforeDay, isSameDay, humanizeDate, todayIso } from '../utils/dates';
 
 export default function Payment() {
   const location = useLocation();
@@ -15,7 +16,16 @@ export default function Payment() {
   const { user } = useCurrentUser();
   const order = location.state?.order;
 
-  const [paymentDate, setPaymentDate] = useState(order?.xdatepay || '');
+  // ─── Lock state ──────────────────────────────────────────────────────────
+  // The form is ONLY locked when the actual payment has been submitted
+  // (`xpaystatus === 'Send'`). Setting an EXPECTED pay date
+  // (`xdatepay`) is just a customer promise and must NOT lock the form.
+  // The salesmen can come back here and collect real money any time
+  // before the expected date.
+  const isPaymentSubmitted = order?.xpaystatus === 'Send';
+  const isLocked = isPaymentSubmitted;
+
+  const [paymentDate, setPaymentDate] = useState(order?.xpaydate || todayIso());
   const [paymentType, setPaymentType] = useState('');
   const [paymentAmount, setPaymentAmount] = useState(order?.netamt?.toString() || '');
   const [bankDetail, setBankDetail] = useState('');
@@ -24,17 +34,52 @@ export default function Payment() {
   const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
   const { errorToast, successToast, showError, showSuccess } = useToast();
 
-  const isAlreadySubmitted = Boolean(order?.xdatepay || order?.xpaystatus === 'Send');
+  // Surface the expected pay date in a helpful place.  If the order has
+  // it, show it; otherwise fall back to a generic "not set yet" hint.
+  const expectedPayDate = order?.xdatepay || null;
+  const deliveryDate = order?.xdate || null;
 
-  const handleSubmit = () => {
-    if (isAlreadySubmitted) return;
-    if (!paymentDate || !paymentType || !paymentAmount.trim()) {
-      showError('Please fill out all required fields.');
-      return;
+  // ─── Validation ──────────────────────────────────────────────────────────
+  // Edge cases covered:
+  //  • empty payment date / type / amount  → block submit
+  //  • payment date BEFORE delivery date   → block submit (you can't
+  //                                          collect money before the
+  //                                          goods are delivered)
+  //  • payment date AFTER expected pay     → ALLOW but show a yellow
+  //    date                                 warning ("the customer
+  //                                          promised an earlier
+  //                                          date; this is past it")
+  //  • payment amount <= 0                 → block submit
+  //  • non-numeric amount                  → block submit
+  const validation = useMemo(() => {
+    if (!paymentDate) {
+      return { ok: false, reason: 'Payment date is required.' };
+    }
+    if (!paymentType) {
+      return { ok: false, reason: 'Please select a payment type.' };
     }
     const amount = Number(paymentAmount);
-    if (Number.isNaN(amount) || amount <= 0) {
-      showError('Payment amount must be a positive number.');
+    if (!paymentAmount || Number.isNaN(amount) || amount <= 0) {
+      return { ok: false, reason: 'Payment amount must be a positive number.' };
+    }
+    if (deliveryDate && isBeforeDay(paymentDate, deliveryDate)) {
+      return {
+        ok: false,
+        reason: `Payment date cannot be earlier than the delivery date (${deliveryDate}).`,
+      };
+    }
+    return { ok: true, reason: '' };
+  }, [paymentDate, paymentType, paymentAmount, deliveryDate]);
+
+  const paymentDateAfterExpected = useMemo(
+    () => Boolean(expectedPayDate) && isBeforeDay(expectedPayDate, paymentDate),
+    [expectedPayDate, paymentDate]
+  );
+
+  const handleSubmit = () => {
+    if (isLocked) return;
+    if (!validation.ok) {
+      showError(validation.reason);
       return;
     }
     setIsConfirmModalOpen(true);
@@ -99,6 +144,11 @@ export default function Payment() {
                 <span className="text-[10px] font-bold text-primary bg-primary-light/50 px-2 py-0.5 rounded-full border border-primary-light">
                   {order.zid} - {getBusinessName(order.zid)}
                 </span>
+                {isPaymentSubmitted && (
+                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-[9px] font-bold text-emerald-700">
+                    <Lock className="w-2.5 h-2.5" />Paid
+                  </span>
+                )}
               </div>
               <h3 className="text-[13px] font-bold text-text-main flex items-center gap-1.5">
                 <User className="w-3.5 h-3.5 text-primary" />{order.xshort || order.xcus}
@@ -130,8 +180,46 @@ export default function Payment() {
               <Banknote className="w-3.5 h-3.5 text-emerald-500" />
               <span className="text-[10px] font-medium text-text-secondary">Payment Status: <span className="font-bold text-text-main">{order.xpaystatus || 'Pending'}</span></span>
             </div>
+            {expectedPayDate && (
+              <div className="flex items-center gap-1.5">
+                <Calendar className="w-3.5 h-3.5 text-purple-500" />
+                <span className="text-[10px] font-medium text-text-secondary">
+                  Expected Pay Date:{' '}
+                  <span className="font-bold text-text-main">
+                    {expectedPayDate}
+                    {isSameDay(expectedPayDate, todayIso()) && ' (Today)'}
+                  </span>
+                </span>
+              </div>
+            )}
           </div>
         </div>
+
+        {/* Hint card: when can the customer pay? */}
+        {!isPaymentSubmitted && (
+          <div className="bg-blue-50/60 border border-blue-100 rounded-[14px] p-3 shadow-sm flex items-start gap-2.5">
+            <div className="w-7 h-7 rounded-lg bg-blue-100 flex items-center justify-center shrink-0">
+              <Info className="w-3.5 h-3.5 text-blue-600" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-[11px] font-bold text-blue-900">When can the customer pay?</p>
+              <p className="text-[10px] text-blue-800/80 leading-snug mt-0.5">
+                {expectedPayDate ? (
+                  <>
+                    Any time <b>on or before {expectedPayDate}</b>
+                    {isBeforeDay(expectedPayDate, todayIso())
+                      ? ' (already past — please collect as soon as possible).'
+                      : isSameDay(expectedPayDate, todayIso())
+                        ? ' (today is the last day).'
+                        : ' (customer can pay early).'}
+                  </>
+                ) : (
+                  <>The expected pay date has not been set yet. Use the <b>Pay Date</b> action on the delivery order to set it first.</>
+                )}
+              </p>
+            </div>
+          </div>
+        )}
 
         <div className="bg-bg-card border border-ui-border rounded-[16px] p-4 shadow-sm">
           <div className="flex items-center gap-2 mb-4">
@@ -148,9 +236,17 @@ export default function Payment() {
                   type="date"
                   value={paymentDate}
                   onChange={(e) => setPaymentDate(e.target.value)}
-                  disabled={isAlreadySubmitted || isSubmitting}
+                  disabled={isLocked || isSubmitting}
+                  min={deliveryDate || undefined}
+                  max={expectedPayDate || undefined}
                   className="w-full h-[42px] px-3 py-2 text-[13px] bg-bg-base border border-ui-border rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-200 focus:border-teal-300 transition-all text-text-main appearance-none disabled:opacity-60"
                 />
+                {expectedPayDate && !isLocked && (
+                  <p className="text-[9.5px] text-text-muted mt-1 ml-1">
+                    Allowed range: <b>{deliveryDate || '—'}</b> to <b>{expectedPayDate}</b>
+                    {' '}(customer's promise)
+                  </p>
+                )}
               </div>
               <div>
                 <label className="flex items-center gap-2 text-[11px] font-bold text-text-main mb-2">
@@ -159,7 +255,7 @@ export default function Payment() {
                 <select
                   value={paymentType}
                   onChange={(e) => setPaymentType(e.target.value)}
-                  disabled={isAlreadySubmitted || isSubmitting}
+                  disabled={isLocked || isSubmitting}
                   className="w-full h-[42px] px-3 py-2 text-[13px] bg-bg-base border border-ui-border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-200 focus:border-purple-300 transition-all text-text-main appearance-none disabled:opacity-60"
                   style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M6 8L1 3h10z' fill='%2394A3B8'/%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 12px center', paddingRight: '36px' }}
                 >
@@ -177,7 +273,7 @@ export default function Payment() {
                   min="0"
                   value={paymentAmount}
                   onChange={(e) => setPaymentAmount(e.target.value)}
-                  disabled={isAlreadySubmitted || isSubmitting}
+                  disabled={isLocked || isSubmitting}
                   className="w-full h-[42px] px-3 py-2 text-[13px] bg-bg-base border border-ui-border rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-200 focus:border-teal-300 transition-all text-text-main appearance-none disabled:opacity-60"
                   placeholder="Enter amount"
                 />
@@ -190,7 +286,7 @@ export default function Payment() {
                   type="text"
                   value={bankDetail}
                   onChange={(e) => setBankDetail(e.target.value)}
-                  disabled={isAlreadySubmitted || isSubmitting}
+                  disabled={isLocked || isSubmitting}
                   className="w-full h-[42px] px-3 py-2 text-[13px] bg-bg-base border border-ui-border rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-200 focus:border-slate-300 transition-all text-text-main appearance-none disabled:opacity-60"
                   placeholder="Enter bank name, branch, or reference"
                 />
@@ -202,18 +298,35 @@ export default function Payment() {
                 <textarea
                   value={remarks}
                   onChange={(e) => setRemarks(e.target.value)}
-                  disabled={isAlreadySubmitted || isSubmitting}
+                  disabled={isLocked || isSubmitting}
                   rows={3}
                   className="w-full px-3 py-2 text-[13px] bg-bg-base border border-ui-border rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-200 focus:border-slate-300 transition-all text-text-main resize-none disabled:opacity-60"
                   placeholder="Any additional notes"
                 />
               </div>
+
+              {/* Live validation feedback */}
+              {!validation.ok && (paymentDate || paymentType || paymentAmount) && (
+                <div className="p-2.5 rounded-[12px] border border-error/30 bg-error/5 flex items-start gap-2">
+                  <AlertTriangle className="w-3.5 h-3.5 text-error shrink-0 mt-0.5" />
+                  <p className="text-[11px] font-medium text-error leading-snug">{validation.reason}</p>
+                </div>
+              )}
+              {validation.ok && paymentDateAfterExpected && (
+                <div className="p-2.5 rounded-[12px] border border-amber-200 bg-amber-50 flex items-start gap-2">
+                  <AlertTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0 mt-0.5" />
+                  <p className="text-[11px] font-medium text-amber-800 leading-snug">
+                    Payment date is after the customer's promised date ({expectedPayDate}). Are you sure? They can still pay late, but consider collecting any revision of the expected date.
+                  </p>
+                </div>
+              )}
+
               {(paymentDate || paymentType || paymentAmount || bankDetail || remarks) && (
                 <div className="mt-3 p-3 bg-bg-base rounded-lg border border-ui-border space-y-2">
                   {paymentDate && (
                     <div className="flex items-center justify-between">
                       <span className="text-[10px] font-medium text-text-secondary flex items-center gap-1.5"><Calendar className="w-3 h-3 text-primary" />Payment Date</span>
-                      <span className="text-[11px] font-bold text-teal-600">{paymentDate}</span>
+                      <span className="text-[11px] font-bold text-teal-600">{paymentDate} <span className="text-text-muted font-normal">({humanizeDate(paymentDate)})</span></span>
                     </div>
                   )}
                   {paymentType && (
@@ -249,14 +362,18 @@ export default function Payment() {
 
       <div className="absolute bottom-0 left-0 right-0 p-4 bg-bg-card border-t border-ui-border shadow-[0_-4px_10px_rgb(0,0,0,0.02)] z-10 w-full md:max-w-3xl md:mx-auto">
         <Button
-          variant={isAlreadySubmitted ? 'outline' : 'primary'}
+          variant={isLocked ? 'outline' : 'primary'}
           size="lg"
-          className={`w-full ${!isAlreadySubmitted ? 'shadow-lg shadow-primary/20' : ''}`}
+          className={`w-full ${!isLocked && validation.ok ? 'shadow-lg shadow-primary/20' : ''}`}
           onClick={handleSubmit}
-          disabled={isAlreadySubmitted || !paymentDate || !paymentType || !paymentAmount || isSubmitting}
+          disabled={isLocked || !validation.ok || isSubmitting}
           isLoading={isSubmitting}
         >
-          {isAlreadySubmitted ? 'Payment Already Submitted' : 'Submit Payment'}
+          {isLocked ? (
+            <><Lock className="w-3.5 h-3.5 mr-1.5" />Payment Already Submitted</>
+          ) : (
+            'Submit Payment'
+          )}
         </Button>
       </div>
 

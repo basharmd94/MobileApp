@@ -1,7 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Loader2, Send, CheckCircle2, Package } from 'lucide-react';
-import { BarChart3 } from 'lucide-react';
+import { Send, CheckCircle2, User, Phone, Mail, IdCard } from 'lucide-react';
 import { Button, ConfirmModal } from '../components';
 import { DASHBOARD_ACTIONS } from '../components/dashboard/dashboard-actions';
 import ActionGrid from '../components/dashboard/ActionGrid';
@@ -162,15 +161,97 @@ export default function Home() {
         ) : activeTab === 'dashboard' ? (
           <>
             <div className="mb-4">
-              <div className="bg-gradient-to-br from-sidebar to-[#1e293b] rounded-[20px] p-4 shadow-lg relative overflow-hidden text-white">
-                <div className="absolute top-0 right-0 w-24 h-24 bg-primary blur-2xl opacity-20 rounded-full"></div>
-                <div className="absolute bottom-0 left-0 w-20 h-20 bg-secondary-blue blur-2xl opacity-20 rounded-full"></div>
-                <div className="relative z-10">
-                  <p className="text-white/70 font-medium text-[11px] mb-0.5">Total Revenue</p>
-                  <h2 className="text-2xl font-bold tracking-tight">$45,231.89</h2>
-                  <div className="mt-1.5 inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-success/20 text-success text-[10px] font-bold">
-                    <BarChart3 className="w-3 h-3" />
-                    +12.5% vs last week
+              <div className="bg-white rounded-[20px] shadow-[0_8px_30px_rgb(0,0,0,0.06)] relative overflow-hidden border border-ui-border/60">
+                {/* ── Gradient header band (no duplicated username) ── */}
+                <div className="relative h-[78px] bg-gradient-to-br from-primary-400 via-primary to-primary-hover overflow-hidden">
+                  {/* Decorative pattern */}
+                  <div className="absolute -top-6 -right-6 w-24 h-24 rounded-full bg-white/15"></div>
+                  <div className="absolute top-3 right-10 w-10 h-10 rounded-full bg-white/10"></div>
+                  <div className="absolute -bottom-4 left-8 w-16 h-16 rounded-full bg-white/10"></div>
+                  <div className="absolute top-1/2 left-1/3 w-2 h-2 rounded-full bg-white/40"></div>
+                  <div className="absolute top-4 left-1/2 w-1.5 h-1.5 rounded-full bg-white/30"></div>
+                  {/* Status pill (frosted glass) */}
+                  <div className="absolute top-3 right-3 z-10">
+                    <span className="inline-flex items-center px-2 py-1 rounded-full bg-white/20 backdrop-blur-sm border border-white/30 text-[9px] font-bold text-white uppercase tracking-wider">
+                      <div className="w-1.5 h-1.5 rounded-full bg-success mr-1.5 shadow-[0_0_6px_#22C55E]"></div>
+                      {user?.status || 'Active'}
+                    </span>
+                  </div>
+                </div>
+
+                {/* ── Floating avatar (no name text) ── */}
+                <div className="px-4 -mt-9 relative z-10">
+                  <div className="w-[72px] h-[72px] rounded-full bg-gradient-to-br from-primary to-primary-hover flex items-center justify-center text-white text-[26px] font-bold shadow-xl shadow-primary/30 ring-4 ring-white">
+                    {user?.username?.charAt(0).toUpperCase() || 'U'}
+                  </div>
+                </div>
+
+                {/* ── Info grid: 2x2 with theme-color tiles ── */}
+                <div className="p-4 pt-3">
+                  <div className="grid grid-cols-2 gap-2">
+                    {/* Username */}
+                    <div className="relative bg-gradient-to-br from-primary-50 to-primary-100/40 p-2.5 rounded-[14px] border border-primary-100 overflow-hidden">
+                      <div className="absolute -right-3 -top-3 w-10 h-10 rounded-full bg-primary/10"></div>
+                      <div className="relative z-10">
+                        <div className="flex items-center gap-1.5 mb-1">
+                          <div className="w-5 h-5 rounded-md bg-primary flex items-center justify-center shadow-sm shadow-primary/30">
+                            <User className="w-2.5 h-2.5 text-white" />
+                          </div>
+                          <p className="text-[9px] text-primary-700 font-bold uppercase tracking-wider">Username</p>
+                        </div>
+                        <p className="text-[12px] font-bold text-text-main truncate">
+                          {user?.username || 'N/A'}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Mobile */}
+                    <div className="relative bg-gradient-to-br from-emerald-50 to-emerald-100/40 p-2.5 rounded-[14px] border border-emerald-100 overflow-hidden">
+                      <div className="absolute -right-3 -top-3 w-10 h-10 rounded-full bg-emerald-500/10"></div>
+                      <div className="relative z-10">
+                        <div className="flex items-center gap-1.5 mb-1">
+                          <div className="w-5 h-5 rounded-md bg-emerald-500 flex items-center justify-center shadow-sm shadow-emerald-500/30">
+                            <Phone className="w-2.5 h-2.5 text-white" />
+                          </div>
+                          <p className="text-[9px] text-emerald-700 font-bold uppercase tracking-wider">Mobile</p>
+                        </div>
+                        <p className="text-[12px] font-bold text-text-main truncate">
+                          {user?.mobile || 'N/A'}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* SP ID */}
+                    <div className="relative bg-gradient-to-br from-blue-50 to-blue-100/40 p-2.5 rounded-[14px] border border-blue-100 overflow-hidden">
+                      <div className="absolute -right-3 -top-3 w-10 h-10 rounded-full bg-blue-500/10"></div>
+                      <div className="relative z-10">
+                        <div className="flex items-center gap-1.5 mb-1">
+                          <div className="w-5 h-5 rounded-md bg-blue-500 flex items-center justify-center shadow-sm shadow-blue-500/30">
+                            <IdCard className="w-2.5 h-2.5 text-white" />
+                          </div>
+                          <p className="text-[9px] text-blue-700 font-bold uppercase tracking-wider">SP ID</p>
+                        </div>
+                        <p className="text-[12px] font-bold text-primary truncate">
+                          {user?.user_id || 'N/A'}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Email */}
+                    <div className="relative bg-gradient-to-br from-purple-50 to-purple-100/40 p-2.5 rounded-[14px] border border-purple-100 overflow-hidden">
+                      <div className="absolute -right-3 -top-3 w-10 h-10 rounded-full bg-purple-500/10"></div>
+                      <div className="relative z-10">
+                        <div className="flex items-center gap-1.5 mb-1">
+                          <div className="w-5 h-5 rounded-md bg-purple-500 flex items-center justify-center shadow-sm shadow-purple-500/30">
+                            <Mail className="w-2.5 h-2.5 text-white" />
+                          </div>
+                          <p className="text-[9px] text-purple-700 font-bold uppercase tracking-wider">Email</p>
+                        </div>
+                        <p className="text-[12px] font-bold text-text-main truncate">
+                          {user?.email || 'N/A'}
+                        </p>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
