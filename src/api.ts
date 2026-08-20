@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { normalizeAppVersionError, triggerAppVersionError } from './utils/appVersionGuard';
 
 declare const __API_URL__: string | undefined;
 
@@ -81,6 +82,18 @@ api.interceptors.response.use(
         return response;
     },
     async (error) => {
+        // ─── 426 Upgrade Required — app version outdated ────────────────
+        // Fired before any other handling so the UpdateRequiredModal
+        // pops up immediately, regardless of which call triggered it.
+        if (error.response?.status === 426) {
+            const normalized = normalizeAppVersionError(error.response.data);
+            triggerAppVersionError(normalized);
+            // Still reject so the calling code (e.g. sendBulkOrders) can
+            // decide whether to also surface a toast. Most code paths will
+            // not show a toast because the modal already takes the screen.
+            return Promise.reject(error);
+        }
+
         // Handle token expiration
         const originalRequest = error.config;
         if (error.response?.status === 401 && !originalRequest._retry) {

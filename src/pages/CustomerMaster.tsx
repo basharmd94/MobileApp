@@ -9,9 +9,9 @@ import BusinessTabs from '../components/BusinessTabs';
 import LoadMoreButton from '../components/LoadMoreButton';
 import { useCurrentUser } from '../hooks/useCurrentUser';
 
-// Default query — the API requires at least 3 chars;
-// "CUS" is the universal prefix that returns all customers.
-const DEFAULT_QUERY = 'CUS';
+// ─── MODIFIED: Use empty string instead of 'CUS' ───
+// The backend will return all customers when customer param is not sent
+const DEFAULT_QUERY = '';  // ← Changed from 'CUS' to ''
 const LIMIT = 10;
 
 export default function CustomerMaster() {
@@ -29,11 +29,7 @@ export default function CustomerMaster() {
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
 
   // ── Stale-response guard ─────────────────────────────────────────────────────
-  // Each fetch call gets a unique ID. Only the most-recent request is allowed to
-  // update state. The `finally` block always clears the loading flag (so it can
-  // never get permanently stuck), but data writes are skipped for old requests.
   const requestIdRef = useRef(0);
-
 
   const fetchCustomers = useCallback(
     async (currentOffset: number, isLoadMore = false) => {
@@ -43,8 +39,11 @@ export default function CustomerMaster() {
       else setLoading(true);
 
       try {
+        // ─── MODIFIED: Only send customer filter if DEFAULT_QUERY has 3+ chars ───
+        // Since DEFAULT_QUERY is now '', the API will return all customers
         const data = await getAllCustomers(activeTab, employeeId, {
-          customer: DEFAULT_QUERY,
+          // Only include customer param if it has 3+ characters
+          ...(DEFAULT_QUERY && DEFAULT_QUERY.trim().length >= 3 ? { customer: DEFAULT_QUERY } : {}),
           limit: LIMIT,
           offset: currentOffset,
         });
@@ -64,7 +63,6 @@ export default function CustomerMaster() {
         console.error('Failed to fetch customers:', err);
         if (!isLoadMore) setCustomers([]);
       } finally {
-        // Always clear the flag for THIS request type — can never get stuck
         if (isLoadMore) setLoadingMore(false);
         else setLoading(false);
       }
@@ -73,8 +71,6 @@ export default function CustomerMaster() {
   );
 
   // Re-fetch when tab changes or employeeId becomes available.
-  // Explicitly reset loadingMore so a mid-flight load-more can't leave
-  // the button stuck in a spinner state after a tab switch.
   useEffect(() => {
     if (!employeeId) return;
     setOffset(0);

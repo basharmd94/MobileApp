@@ -1,19 +1,73 @@
-import { 
-  MessageSquare, Receipt, Package, 
+import {
+  MessageSquare, Receipt, Package,
   RotateCcw, List, Sparkles,
   Clock, CheckCircle2, Ban,
-  Users, Box,
-  type LucideIcon 
+  Users, Box, Truck, ShoppingBag,
+  type LucideIcon
 } from 'lucide-react';
+
+export type ActionColor =
+  | 'blue' | 'orange' | 'purple' | 'yellow' | 'green'
+  | 'red' | 'cyan' | 'teal' | 'indigo';
 
 export interface ActionConfig {
   id: string;
   icon: LucideIcon;
   label: string;
-  color: 'blue' | 'orange' | 'purple' | 'yellow' | 'green' | 'red' | 'cyan' | 'teal' | 'indigo';
+  color: ActionColor;
   route?: string;
   onClick?: () => void;
+  comingSoon?: boolean;
 }
+
+export interface ActionRowMeta {
+  id: string;
+  label: string;
+  icon: LucideIcon;
+  iconColor: string;        // tailwind text-* class for the row icon
+  dotClass: string;         // tailwind bg-* class for the decorative blob
+  accentBar: string;        // tailwind bg-* class for the left accent bar
+  gradientClass: string;    // tailwind bg-gradient-to-br ... class
+}
+
+export const ACTION_ROW_META: ActionRowMeta[] = [
+  {
+    id: 'order-placing',
+    label: 'Order Placing',
+    icon: ShoppingBag,
+    iconColor: 'text-amber-600',
+    dotClass: 'bg-amber-400',
+    accentBar: 'bg-gradient-to-b from-amber-400 to-amber-600',
+    gradientClass: 'from-amber-50/90 via-amber-50/30 to-transparent',
+  },
+  {
+    id: 'delivery-rec',
+    label: 'Delivery & Rec',
+    icon: Truck,
+    iconColor: 'text-indigo-600',
+    dotClass: 'bg-indigo-400',
+    accentBar: 'bg-gradient-to-b from-indigo-400 to-indigo-600',
+    gradientClass: 'from-indigo-50/90 via-indigo-50/30 to-transparent',
+  },
+  {
+    id: 'return',
+    label: 'Return',
+    icon: RotateCcw,
+    iconColor: 'text-emerald-600',
+    dotClass: 'bg-emerald-400',
+    accentBar: 'bg-gradient-to-b from-emerald-400 to-emerald-600',
+    gradientClass: 'from-emerald-50/90 via-emerald-50/30 to-transparent',
+  },
+  {
+    id: 'customer-items',
+    label: 'Customer & Items',
+    icon: Users,
+    iconColor: 'text-blue-600',
+    dotClass: 'bg-blue-400',
+    accentBar: 'bg-gradient-to-b from-blue-400 to-blue-600',
+    gradientClass: 'from-blue-50/90 via-blue-50/30 to-transparent',
+  },
+];
 
 export const DASHBOARD_ACTIONS: ActionConfig[][] = [
   // Row 1 — Order Placing
@@ -30,14 +84,14 @@ export const DASHBOARD_ACTIONS: ActionConfig[][] = [
   ],
   // Row 3 — Return & Masters
   [
-    { id: 'return',      icon: RotateCcw, label: 'Return',      color: 'cyan',   route: '/delivery-orders' },
-    { id: 'return-list', icon: List,      label: 'Return List', color: 'teal',   route: '/return-list' },
-    { id: 'coming-soon', icon: Sparkles,  label: 'Coming Soon', color: 'indigo' },
+    { id: 'return',        icon: RotateCcw, label: 'Return',      color: 'cyan',   route: '/delivery-orders' },
+    { id: 'return-list',   icon: List,      label: 'Return List', color: 'teal',   route: '/return-list' },
+    { id: 'coming-soon-1', icon: Sparkles,  label: 'Coming Soon', color: 'indigo', comingSoon: true },
   ],
   // Row 4 — Master Data
   [
-    { id: 'customers',   icon: Users,     label: 'Customers',   color: 'blue',   route: '/customers' },
-    { id: 'items',       icon: Box,       label: 'Items',       color: 'teal',   route: '/items' },
-    { id: 'coming-soon-2', icon: Sparkles, label: 'Coming Soon', color: 'indigo' },
+    { id: 'customers',     icon: Users,   label: 'Customers',   color: 'blue',   route: '/customers' },
+    { id: 'items',         icon: Box,     label: 'Items',       color: 'teal',   route: '/items' },
+    { id: 'coming-soon-2', icon: Sparkles, label: 'Coming Soon', color: 'indigo', comingSoon: true },
   ],
-];
+];

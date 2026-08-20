@@ -1,34 +1,73 @@
+import { Sparkles } from 'lucide-react';
 import ActionButton from './ActionButton';
-import type { ActionConfig } from './dashboard-actions';
-
-const ROW_META = [
-  { label: 'Order Placing',   dotClass: 'bg-amber-400' },
-  { label: 'Delivery & Rec', dotClass: 'bg-indigo-400' },
-  { label: 'Return',         dotClass: 'bg-emerald-400' },
-  { label: 'Customer & Items', dotClass: 'bg-blue-400' },
-];
+import { ACTION_ROW_META, type ActionConfig } from './dashboard-actions';
 
 export default function ActionGrid({ actions }: { actions: ActionConfig[][] }) {
   return (
-    <div className="bg-[#fff8f0] border border-[#f0e4d0] rounded-[22px] p-3 shadow-[0_2px_12px_rgba(0,0,0,0.04)] flex flex-col gap-2.5">
+    <div className="space-y-2.5">
+      {/* Section heading */}
+      <div className="flex items-center gap-2 px-1">
+        <div className="w-7 h-7 rounded-xl bg-gradient-to-br from-primary to-primary-hover flex items-center justify-center shadow-md shadow-primary/30">
+          <Sparkles className="w-3.5 h-3.5 text-white" strokeWidth={2.5} />
+        </div>
+        <div className="flex-1">
+          <h3 className="text-[12px] font-bold text-text-main leading-tight">Quick Actions</h3>
+          <p className="text-[9.5px] text-text-muted font-medium leading-none mt-0.5">Everything you need, one tap away</p>
+        </div>
+      </div>
+
       {actions.map((row, rowIndex) => {
-        const meta = ROW_META[rowIndex];
+        const meta = ACTION_ROW_META[rowIndex];
+        const RowIcon = meta?.icon;
+
         return (
-          <div key={rowIndex} className="bg-white rounded-2xl border border-[#f5ede0] overflow-hidden">
-            {/* Group label */}
-            {meta && (
-              <>
-                <div className="flex items-center gap-2 px-3.5 pt-2.5 pb-1.5">
-                  <span className={`w-1.5 h-1.5 rounded-full ${meta.dotClass}`} />
-                  <span className="text-[9.5px] font-bold tracking-[0.08em] uppercase text-[#9c8878]">
-                    {meta.label}
-                  </span>
+          <div
+            key={rowIndex}
+            className={[
+              'relative bg-white border border-ui-border/60 rounded-[20px] p-2.5',
+              'shadow-[0_2px_12px_rgba(0,0,0,0.03)]',
+              'overflow-hidden',
+            ].join(' ')}
+          >
+            {/* Per-row themed gradient backdrop (very subtle) */}
+            <div
+              className={[
+                'absolute inset-0 pointer-events-none',
+                'bg-gradient-to-br',
+                meta?.gradientClass || 'from-white to-white',
+              ].join(' ')}
+            />
+
+            {/* Decorative blurred blob in the corner */}
+            <div
+              className={[
+                'absolute -top-12 -right-12 w-36 h-36 rounded-full blur-2xl',
+                'opacity-50 pointer-events-none',
+                meta?.dotClass || 'bg-gray-300',
+              ].join(' ')}
+            />
+
+            {/* Header — accent bar + icon chip + label + fading divider */}
+            {meta && RowIcon && (
+              <div className="relative flex items-center gap-2 px-1.5 mb-2.5">
+                <div
+                  className={[
+                    'w-0.5 h-5 rounded-full shrink-0',
+                    meta.accentBar,
+                  ].join(' ')}
+                />
+                <div className="w-7 h-7 rounded-xl bg-white border border-ui-border/60 flex items-center justify-center shadow-sm shrink-0">
+                  <RowIcon className={`w-3.5 h-3.5 ${meta.iconColor}`} strokeWidth={2.5} />
                 </div>
-                <div className="h-px bg-[#fdf0e4] mx-3.5" />
-              </>
+                <span className="text-[10px] font-bold tracking-[0.1em] uppercase text-text-secondary whitespace-nowrap">
+                  {meta.label}
+                </span>
+                <div className="flex-1 h-px bg-gradient-to-r from-ui-border/80 via-ui-border/30 to-transparent ml-1" />
+              </div>
             )}
-            {/* Buttons */}
-            <div className="grid grid-cols-3 gap-2 p-2.5">
+
+            {/* Action buttons */}
+            <div className="relative grid grid-cols-3 gap-2">
               {row.map((action) => (
                 <ActionButton key={action.id} config={action} />
               ))}

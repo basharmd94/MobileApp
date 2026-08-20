@@ -77,24 +77,20 @@ export function CustomerSearch({
   }, [isOpen]);
 
   // ─── Fetch logic ──────────────────────────────────────────────────────────
-  // Deps are INTENTIONALLY limited to debounced values + identity flags.
-  // We do NOT depend on `query` (would re-fire on every keystroke) or
-  // `value` (re-fires whenever the selected customer changes). The overlay
-  // closes on selection, so `isOpen` going false already short-circuits
-  // anything we would otherwise have done.
   useEffect(() => {
-    // 1) Always tear down the previous fetch first. This guarantees that
-    //    at most one network request is in flight per overlay session.
+    // 1) Always tear down the previous fetch first.
     cancelInFlight();
 
     const trimmed = debouncedQuery.trim();
 
-    // 2) Early-return paths: nothing should be loading in any of these.
+    // ─── FIX: Reset loading state when query becomes too short ───
     if (!isOpen || trimmed.length < 3 || disabled || !employeeId) {
+      // If query is too short, clear results and ensure loading is false
       if (trimmed.length < 3) {
         setResults([]);
+        // ─── CRITICAL FIX: Always set loading to false when query is too short ───
+        setIsLoading(false);
       }
-      setIsLoading(false);
       return;
     }
 
@@ -158,8 +154,7 @@ export function CustomerSearch({
 
     runFetch();
 
-    // 5) Cleanup runs when deps change OR component unmounts. Abort the
-    //    in-flight request so the connection pool doesn't fill up.
+    // 5) Cleanup runs when deps change OR component unmounts.
     return () => {
       controller.abort();
       if (timeoutId) {
@@ -184,6 +179,7 @@ export function CustomerSearch({
     setIsOpen(true);
     setQuery('');
     setResults([]);
+    // ─── FIX: Ensure loading is false when opening overlay ───
     setIsLoading(false);
   };
 
@@ -192,6 +188,7 @@ export function CustomerSearch({
     setIsOpen(false);
     setQuery('');
     setResults([]);
+    // ─── FIX: Ensure loading is false when closing overlay ───
     setIsLoading(false);
     fieldRef.current?.focus();
   };
@@ -200,6 +197,7 @@ export function CustomerSearch({
     onChange(null);
     setQuery('');
     setResults([]);
+    // ─── FIX: Ensure loading is false when clearing selection ───
     setIsLoading(false);
     fieldRef.current?.focus();
   };
@@ -278,6 +276,8 @@ export function CustomerSearch({
                     onClick={() => {
                       setQuery('');
                       setResults([]);
+                      // ─── FIX: Clear loading when clearing query ───
+                      setIsLoading(false);
                       overlayInputRef.current?.focus();
                     }}
                     aria-label="Clear"

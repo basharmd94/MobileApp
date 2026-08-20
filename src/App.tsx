@@ -18,6 +18,7 @@ import CustomerMaster from './pages/CustomerMaster';
 import ItemMaster from './pages/ItemMaster';
 import { ConfirmModal } from './components/ui/ConfirmModal';
 import LocationTracker from './components/LocationTracker';
+import { UpdateRequiredModal } from './components/UpdateRequiredModal';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const token = localStorage.getItem('accessToken');
@@ -78,6 +79,9 @@ function AppContent() {
   return (
     <>
       <LocationTracker />
+      {/* Global 426 / app-version guard. Sits on top of every page
+          and every other modal, so it can never be missed. */}
+      <UpdateRequiredModal />
       <Routes>
         <Route path="/login" element={<Login />} />
         <Route path="/" element={

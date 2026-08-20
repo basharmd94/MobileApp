@@ -106,19 +106,24 @@ export function usePendingOrders() {
       orderToSend.dev_options_enabled = dev_options_enabled;
 
       const response = await sendBulkOrders([orderToSend]);
-      
+
       setPendingOrders(prev => {
         const newOrders = [...prev];
         newOrders.splice(index, 1);
         return newOrders;
       });
-      
+
       const responseList = Array.isArray(response) ? response : (response?.data ? (Array.isArray(response.data) ? response.data : [response.data]) : [response]);
       const invoices = responseList.map((r: any) => r?.invoiceno).filter(Boolean).join(', ');
       showSuccess(`Order sent successfully! Invoice: ${invoices || 'N/A'}`);
-      
+
       return true;
     } catch (err: any) {
+      // 426 is handled by the global UpdateRequiredModal — suppress the
+      // toast so we don't show the same message twice.
+      if (err?.isAppVersionError || err?.status === 426) {
+        return false;
+      }
       showError(err.message || 'Failed to send order');
       return false;
     } finally {
@@ -128,7 +133,7 @@ export function usePendingOrders() {
 
   const sendAllOrders = async () => {
     if (pendingOrders.length === 0) return false;
-    
+
     setIsSending(true);
     try {
       const loc = await getCurrentLocation();
@@ -145,15 +150,19 @@ export function usePendingOrders() {
       }));
 
       const response = await sendBulkOrders(ordersToSend);
-      
+
       setPendingOrders([]);
-      
+
       const responseList = Array.isArray(response) ? response : (response?.data ? (Array.isArray(response.data) ? response.data : [response.data]) : [response]);
       const invoices = responseList.map((r: any) => r?.invoiceno).filter(Boolean).join(', ');
       showSuccess(`Orders sent successfully! Invoices: ${invoices || 'N/A'}`);
-      
+
       return true;
     } catch (err: any) {
+      // Same 426 handling as sendSingleOrder.
+      if (err?.isAppVersionError || err?.status === 426) {
+        return false;
+      }
       showError(err.message || 'Failed to send orders');
       return false;
     } finally {
