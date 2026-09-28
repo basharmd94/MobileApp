@@ -27,6 +27,7 @@ export default function Payment() {
   const navigate = useNavigate();
   const { user } = useCurrentUser();
   const order = location.state?.order;
+  const orderTotalAmount = order?.total_amount ?? order?.netamt;
 
   // ─── Lock state ──────────────────────────────────────────────────────────
   const isPaymentSubmitted = order?.xpaystatus === 'Send';
@@ -34,7 +35,7 @@ export default function Payment() {
 
   const [paymentDate, setPaymentDate] = useState(order?.xpaydate || todayIso());
   const [paymentType, setPaymentType] = useState('');
-  const [paymentAmount, setPaymentAmount] = useState(order?.netamt?.toString() || '');
+  const [paymentAmount, setPaymentAmount] = useState(orderTotalAmount?.toString() || '');
   const [bankDetail, setBankDetail] = useState('');
   const [remarks, setRemarks] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -75,14 +76,14 @@ export default function Payment() {
         reason: `Payment date cannot be earlier than the delivery date (${deliveryDate}).`,
       };
     }
-    if (order?.netamt && amount > Number(order.netamt)) {
+    if (orderTotalAmount && amount > Number(orderTotalAmount)) {
       return {
         ok: false,
-        reason: `Payment amount (৳${amount.toLocaleString()}) exceeds the DO total (৳${Number(order.netamt).toLocaleString()}).`,
+        reason: `Payment amount (৳${amount.toLocaleString()}) exceeds the DO total (৳${Number(orderTotalAmount).toLocaleString()}).`,
       };
     }
     return { ok: true, reason: '' };
-  }, [paymentDate, paymentType, paymentAmount, deliveryDate, order?.netamt]);
+  }, [paymentDate, paymentType, paymentAmount, deliveryDate, orderTotalAmount]);
 
   // ─── Error handlers ─────────────────────────────────────────────────────
   const handlePaymentError = (error: any) => {
@@ -329,7 +330,7 @@ export default function Payment() {
             </div>
             <div className="text-right">
               <span className="text-[12px] font-bold text-success bg-success/10 px-2 py-1 rounded-lg border border-success/20 flex items-center gap-1">
-                <TrendingUp className="w-3 h-3" />৳{order.netamt?.toLocaleString()}
+                <TrendingUp className="w-3 h-3" />৳{orderTotalAmount?.toLocaleString()}
               </span>
             </div>
           </div>
@@ -476,7 +477,7 @@ export default function Payment() {
               <input
                 type="number"
                 min="0"
-                max={order?.netamt || undefined}
+                max={orderTotalAmount || undefined}
                 value={paymentAmount}
                 onChange={(e) => {
                   setPaymentAmount(e.target.value);
@@ -486,9 +487,9 @@ export default function Payment() {
                 className="w-full h-[42px] px-3 py-2 text-[13px] bg-bg-base border border-ui-border rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-200 focus:border-teal-300 transition-all text-text-main appearance-none disabled:opacity-60"
                 placeholder="Enter amount"
               />
-              {order?.netamt && (
+              {orderTotalAmount && (
                 <p className="text-[9.5px] text-text-muted mt-1 ml-1">
-                  DO Total: ৳{Number(order.netamt).toLocaleString()}
+                  DO Total: ৳{Number(orderTotalAmount).toLocaleString()}
                 </p>
               )}
             </div>
