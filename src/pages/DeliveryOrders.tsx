@@ -156,6 +156,8 @@ export default function DeliveryOrders() {
             {orders.map((order, i) => {
               const isExpanded = expandedOrders[order.xdornum];
               const statusBadge = getStatusBadge(order.xstatusdor);
+              const totalAmount = Number(order.total_amount ?? order.grossamt ?? 0);
+              const remainingDue = Number(order.remaining_due ?? totalAmount);
               return (
                 <div key={order.xdornum || i} className="bg-[#fff7ed] border border-orange-100 p-3.5 rounded-[16px] shadow-[0_2px_10px_rgb(0,0,0,0.03)]">
                   <div className="flex justify-between items-start mb-2">
@@ -170,7 +172,10 @@ export default function DeliveryOrders() {
                       <p className="text-[10px] text-text-muted ml-5">{order.xadd1}</p>
                     </div>
                     <div className="text-right">
-                      <span className="text-[12px] font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded-lg border border-emerald-100 flex items-center gap-1"><TrendingUp className="w-3 h-3" />৳{order.total_amount?.toLocaleString()}</span>
+                      <span className="text-[12px] font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded-lg border border-emerald-100 flex items-center gap-1"><TrendingUp className="w-3 h-3" />৳{totalAmount.toLocaleString()}</span>
+                      <p className={`mt-1 text-[10px] font-bold ${remainingDue > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
+                        Due: ৳{remainingDue.toLocaleString()}
+                      </p>
                     </div>
                   </div>
                   <div className="flex flex-col gap-1.5 mb-3 p-2.5 bg-white/60 rounded-[12px] border border-orange-50">

@@ -7,7 +7,7 @@ export interface CustomerPaymentInfo {
   xshort: string;
   xemp: string;
   xname: string;
-  xpayamt: string;
+  xpayamt: number | string;
   xpaydate: string;
   xpaytype: string;
   xbankdetail: string;
@@ -59,6 +59,7 @@ export interface GetCustomerPaymentsParams {
   xcus?: string;
   xemp?: string;
   xdate?: string;
+  xdornum?: string;
   limit?: number;
   offset?: number;
 }
@@ -68,6 +69,9 @@ export interface GetCustomerPaymentsResponse {
   total: number;
   limit: number;
   offset: number;
+  do_total_amount?: number | string | null;
+  paid_amount?: number | string | null;
+  remaining_due?: number | string | null;
   message: string;
 }
 

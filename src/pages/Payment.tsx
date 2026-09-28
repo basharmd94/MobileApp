@@ -1,18 +1,17 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { 
   User, Hash, Calendar, TrendingUp, CreditCard, Banknote, 
-  MessageSquare, AlertTriangle, CheckCircle2, Lock, Info, 
-  XCircle, RefreshCw, Clock 
+  MessageSquare, AlertTriangle, Lock, Clock
 } from 'lucide-react';
 import Header from '../components/ui/Header';
 import { Button, ConfirmModal } from '../components';
 import Toast from '../components/ui/Toast';
 import { getBusinessName } from '../utils/business';
-import { createCustomerPayment, OverpaymentErrorWrapper } from '../api_payment';
+import { createCustomerPayment, getCustomerPayments, OverpaymentErrorWrapper, CustomerPaymentInfo } from '../api_payment';
 import { useCurrentUser } from '../hooks/useCurrentUser';
 import { useToast } from '../hooks/useToast';
-import { isOnOrAfterDay, isBeforeDay, isOnOrBeforeDay, isSameDay, humanizeDate, todayIso } from '../utils/dates';
+import { isBeforeDay, isSameDay, humanizeDate, todayIso } from '../utils/dates';
 
 // Helper function to calculate days late
 const getDaysLate = (expectedDate: string, actualDate: string): number => {
@@ -27,7 +26,8 @@ export default function Payment() {
   const navigate = useNavigate();
   const { user } = useCurrentUser();
   const order = location.state?.order;
-  const orderTotalAmount = order?.total_amount ?? order?.netamt;
+  const initialTotalAmount = Number(order?.total_amount ?? order?.grossamt ?? order?.netamt ?? 0);
+  const initialRemainingDue = Number(order?.remaining_due ?? initialTotalAmount);
 
   // ─── Lock state ──────────────────────────────────────────────────────────
   const isPaymentSubmitted = order?.xpaystatus === 'Send';
@@ -35,17 +35,60 @@ export default function Payment() {
 
   const [paymentDate, setPaymentDate] = useState(order?.xpaydate || todayIso());
   const [paymentType, setPaymentType] = useState('');
-  const [paymentAmount, setPaymentAmount] = useState(orderTotalAmount?.toString() || '');
+  const [paymentAmount, setPaymentAmount] = useState(String(initialRemainingDue));
+  const [orderTotalAmount, setOrderTotalAmount] = useState(initialTotalAmount);
+  const [paidAmount, setPaidAmount] = useState(Number(order?.paid_amount ?? 0));
+  const [remainingDue, setRemainingDue] = useState(initialRemainingDue);
+  const [paymentHistory, setPaymentHistory] = useState<CustomerPaymentInfo[]>([]);
+  const [paymentHistoryTotal, setPaymentHistoryTotal] = useState(0);
+  const [paymentHistoryLoading, setPaymentHistoryLoading] = useState(true);
+  const paymentAmountTouched = useRef(false);
   const [bankDetail, setBankDetail] = useState('');
   const [remarks, setRemarks] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
-  const [paymentError, setPaymentError] = useState<any>(null);
-  const [retryCount, setRetryCount] = useState(0);
   const { errorToast, successToast, showError, showSuccess } = useToast();
+  const showErrorRef = useRef(showError);
+  showErrorRef.current = showError;
 
   const expectedPayDate = order?.xdatepay || null;
   const deliveryDate = order?.xdate || null;
+
+  const loadPaymentHistory = useCallback(async (offset = 0, append = false) => {
+    if (order?.zid === undefined || !order?.xdornum) return;
+    setPaymentHistoryLoading(true);
+    try {
+      const response = await getCustomerPayments({
+        zid: order.zid,
+        xdornum: order.xdornum,
+        limit: 20,
+        offset,
+      });
+      setPaymentHistory((current) => append ? [...current, ...response.data] : response.data);
+      setPaymentHistoryTotal(response.total);
+
+      if (offset === 0) {
+        const totalAmount = Number(response.do_total_amount ?? order.total_amount ?? order.grossamt ?? order.netamt ?? 0);
+        const totalPaid = Number(response.paid_amount ?? order.paid_amount ?? 0);
+        const due = Number(response.remaining_due ?? order.remaining_due ?? Math.max(totalAmount - totalPaid, 0));
+        setOrderTotalAmount(totalAmount);
+        setPaidAmount(totalPaid);
+        setRemainingDue(due);
+        if (!paymentAmountTouched.current) setPaymentAmount(String(due));
+      }
+    } catch (error: any) {
+      const detail = error.response?.data?.detail;
+      const message = typeof detail === 'string' ? detail : detail?.message || error.message || 'Unable to load payment history';
+      showErrorRef.current(message);
+    } finally {
+      setPaymentHistoryLoading(false);
+    }
+  }, [order?.zid, order?.xdornum, order?.grossamt, order?.total_amount, order?.netamt, order?.paid_amount, order?.remaining_due]);
+
+  useEffect(() => {
+    paymentAmountTouched.current = false;
+    void loadPaymentHistory(0);
+  }, [loadPaymentHistory]);
 
   // ─── Check if payment is late ──────────────────────────────────────────
   const isLatePayment = useMemo(() => {
@@ -60,6 +103,9 @@ export default function Payment() {
 
   // ─── Validation ──────────────────────────────────────────────────────────
   const validation = useMemo(() => {
+    if (remainingDue <= 0) {
+      return { ok: false, reason: 'This delivery order has no remaining balance.' };
+    }
     if (!paymentDate) {
       return { ok: false, reason: 'Payment date is required.' };
     }
@@ -76,43 +122,29 @@ export default function Payment() {
         reason: `Payment date cannot be earlier than the delivery date (${deliveryDate}).`,
       };
     }
-    if (orderTotalAmount && amount > Number(orderTotalAmount)) {
+    if (amount > remainingDue) {
       return {
         ok: false,
-        reason: `Payment amount (৳${amount.toLocaleString()}) exceeds the DO total (৳${Number(orderTotalAmount).toLocaleString()}).`,
+        reason: `Payment amount (৳${amount.toLocaleString()}) exceeds the remaining due (৳${remainingDue.toLocaleString()}).`,
       };
     }
     return { ok: true, reason: '' };
-  }, [paymentDate, paymentType, paymentAmount, deliveryDate, orderTotalAmount]);
+  }, [paymentDate, paymentType, paymentAmount, deliveryDate, remainingDue]);
 
-  // ─── Error handlers ─────────────────────────────────────────────────────
   const handlePaymentError = (error: any) => {
     if (error instanceof OverpaymentErrorWrapper) {
       const { detail } = error;
-      setPaymentError({
-        type: 'overpayment',
-        message: detail.message,
-        details: detail,
-      });
-      showError(`Overpayment detected! You're trying to pay ৳${detail.overpaid_by.toLocaleString()} more than the remaining amount.`);
+      setOrderTotalAmount(detail.do_total_amount);
+      setPaidAmount(detail.already_paid);
+      setRemainingDue(Math.max(detail.do_total_amount - detail.already_paid, 0));
+      showError(`${detail.message} Remaining due: ৳${Math.max(detail.do_total_amount - detail.already_paid, 0).toLocaleString()}.`);
     } else if (error.response?.status === 403) {
-      setPaymentError({
-        type: 'version',
-        message: 'Your app version is outdated. Please update to the latest version.',
-      });
       showError('App version mismatch. Please update the application.');
     } else {
-      const message = error.response?.data?.detail || error.message || 'An error occurred while submitting payment';
-      setPaymentError({
-        type: 'server',
-        message: typeof message === 'string' ? message : JSON.stringify(message),
-      });
-      showError(typeof message === 'string' ? message : 'Failed to submit payment');
+      const detail = error.response?.data?.detail;
+      const message = typeof detail === 'string' ? detail : detail?.message || error.message || 'An error occurred while submitting payment';
+      showError(message);
     }
-  };
-
-  const clearPaymentError = () => {
-    setPaymentError(null);
   };
 
   const handleSubmit = () => {
@@ -121,7 +153,6 @@ export default function Payment() {
       showError(validation.reason);
       return;
     }
-    clearPaymentError();
     setIsConfirmModalOpen(true);
   };
 
@@ -129,7 +160,6 @@ export default function Payment() {
     if (!order) return;
     setIsConfirmModalOpen(false);
     setIsSubmitting(true);
-    clearPaymentError();
 
     try {
       const payload = {
@@ -150,7 +180,13 @@ export default function Payment() {
       const response = await createCustomerPayment(payload);
       
       if (response.success) {
-        // Show appropriate success message
+        const nextRemainingDue = Number(response.xremaining ?? Math.max(remainingDue - Number(paymentAmount), 0));
+        const nextPaidAmount = Number(response.xpaid_so_far ?? paidAmount + Number(paymentAmount));
+        setRemainingDue(nextRemainingDue);
+        setPaidAmount(nextPaidAmount);
+        if (response.xtotamt !== undefined) setOrderTotalAmount(Number(response.xtotamt));
+        void loadPaymentHistory(0);
+
         if (isLatePayment) {
           showSuccess(`⚠️ Late payment recorded! ${daysLate} days late. Payment successful!`);
         } else {
@@ -168,131 +204,14 @@ export default function Payment() {
           }, 100);
         }
         
-        setTimeout(() => {
-          navigate('/delivery-orders');
-        }, 2500);
       } else {
         showError(response.message || 'Failed to submit payment');
       }
     } catch (err: any) {
       handlePaymentError(err);
-      setRetryCount(prev => prev + 1);
     } finally {
       setIsSubmitting(false);
     }
-  };
-
-  const handleRetry = () => {
-    clearPaymentError();
-    handleSubmit();
-  };
-
-  // ─── Render error states ──────────────────────────────────────────────
-  const renderPaymentError = () => {
-    if (!paymentError) return null;
-
-    if (paymentError.type === 'overpayment') {
-      const details = paymentError.details;
-      return (
-        <div className="p-4 rounded-[16px] border border-error/30 bg-error/5">
-          <div className="flex items-start gap-3">
-            <div className="w-8 h-8 rounded-full bg-error/10 flex items-center justify-center shrink-0">
-              <XCircle className="w-4 h-4 text-error" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <h4 className="text-[12px] font-bold text-error">Overpayment Detected</h4>
-              <p className="text-[11px] text-text-secondary mt-1 leading-relaxed">
-                This payment would exceed the DO total amount.
-              </p>
-              {details && (
-                <div className="mt-2 p-3 bg-bg-card rounded-lg border border-ui-border space-y-1.5">
-                  <div className="flex justify-between text-[10px]">
-                    <span className="text-text-secondary">DO Total:</span>
-                    <span className="font-bold text-text-main">৳{details.do_total_amount?.toLocaleString()}</span>
-                  </div>
-                  <div className="flex justify-between text-[10px]">
-                    <span className="text-text-secondary">Already Paid:</span>
-                    <span className="font-bold text-text-main">৳{details.already_paid?.toLocaleString()}</span>
-                  </div>
-                  <div className="flex justify-between text-[10px]">
-                    <span className="text-text-secondary">This Payment:</span>
-                    <span className="font-bold text-error">৳{details.this_payment?.toLocaleString()}</span>
-                  </div>
-                  <div className="flex justify-between text-[10px] pt-1 border-t border-ui-border">
-                    <span className="text-text-secondary">Overpaid By:</span>
-                    <span className="font-bold text-error">৳{details.overpaid_by?.toLocaleString()}</span>
-                  </div>
-                </div>
-              )}
-              <div className="mt-3 flex gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={clearPaymentError}
-                  className="text-[11px]"
-                >
-                  Adjust Amount
-                </Button>
-                <Button
-                  variant="primary"
-                  size="sm"
-                  onClick={handleRetry}
-                  className="text-[11px]"
-                >
-                  Try Again
-                </Button>
-              </div>
-            </div>
-          </div>
-        </div>
-      );
-    }
-
-    if (paymentError.type === 'version') {
-      return (
-        <div className="p-4 rounded-[16px] border border-amber-300 bg-amber-50">
-          <div className="flex items-start gap-3">
-            <RefreshCw className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
-            <div className="flex-1">
-              <h4 className="text-[12px] font-bold text-amber-800">App Version Mismatch</h4>
-              <p className="text-[11px] text-amber-700 mt-1 leading-relaxed">
-                {paymentError.message}
-              </p>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => window.location.reload()}
-                className="mt-2 text-[11px]"
-              >
-                Refresh App
-              </Button>
-            </div>
-          </div>
-        </div>
-      );
-    }
-
-    return (
-      <div className="p-4 rounded-[16px] border border-error/30 bg-error/5">
-        <div className="flex items-start gap-3">
-          <AlertTriangle className="w-4 h-4 text-error shrink-0 mt-0.5" />
-          <div className="flex-1">
-            <h4 className="text-[12px] font-bold text-error">Payment Error</h4>
-            <p className="text-[11px] text-text-secondary mt-1 leading-relaxed">
-              {paymentError.message}
-            </p>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleRetry}
-              className="mt-2 text-[11px]"
-            >
-              Try Again
-            </Button>
-          </div>
-        </div>
-      </div>
-    );
   };
 
   if (!order) {
@@ -353,6 +272,10 @@ export default function Payment() {
               <Banknote className="w-3.5 h-3.5 text-emerald-500" />
               <span className="text-[10px] font-medium text-text-secondary">Payment Status: <span className="font-bold text-text-main">{order.xpaystatus || 'Pending'}</span></span>
             </div>
+            <div className="flex justify-between text-[10px] font-medium text-text-secondary">
+              <span>Paid: <b className="text-text-main">৳{paidAmount.toLocaleString()}</b></span>
+              <span>Remaining due: <b className={remainingDue > 0 ? 'text-rose-600' : 'text-emerald-600'}>৳{remainingDue.toLocaleString()}</b></span>
+            </div>
             {expectedPayDate && (
               <div className="flex items-center gap-1.5">
                 <Calendar className="w-3.5 h-3.5 text-purple-500" />
@@ -369,32 +292,40 @@ export default function Payment() {
           </div>
         </div>
 
-        {/* Hint Card */}
-        {!isPaymentSubmitted && (
-          <div className="bg-blue-50/60 border border-blue-100 rounded-[14px] p-3 shadow-sm flex items-start gap-2.5">
-            <div className="w-7 h-7 rounded-lg bg-blue-100 flex items-center justify-center shrink-0">
-              <Info className="w-3.5 h-3.5 text-blue-600" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-[11px] font-bold text-blue-900">When can the customer pay?</p>
-              <p className="text-[10px] text-blue-800/80 leading-snug mt-0.5">
-                {expectedPayDate ? (
-                  <>
-                    Any time <b>on or before {expectedPayDate}</b>
-                    {isBeforeDay(expectedPayDate, todayIso())
-                      ? ' (already past — please collect as soon as possible).'
-                      : isSameDay(expectedPayDate, todayIso())
-                        ? ' (today is the last day).'
-                        : ' (customer can pay early).'}
-                    {' '}You can also record late payments after the expected date.
-                  </>
-                ) : (
-                  <>The expected pay date has not been set yet. Use the <b>Pay Date</b> action on the delivery order to set it first.</>
-                )}
-              </p>
-            </div>
+        <section className="bg-bg-card border border-ui-border rounded-[16px] p-4 shadow-sm">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-[12px] font-bold text-text-main">Payment History</h3>
+            <span className="text-[10px] text-text-muted">{paymentHistoryTotal} payment{paymentHistoryTotal === 1 ? '' : 's'}</span>
           </div>
-        )}
+          {paymentHistoryLoading && paymentHistory.length === 0 ? (
+            <p className="text-[11px] text-text-muted">Loading payment history...</p>
+          ) : paymentHistory.length === 0 ? (
+            <p className="text-[11px] text-text-muted">No payments recorded for this delivery order.</p>
+          ) : (
+            <div className="divide-y divide-ui-border">
+              {paymentHistory.map((payment) => (
+                <div key={payment.xpmtnum} className="flex items-start justify-between gap-3 py-2.5 first:pt-0 last:pb-0">
+                  <div className="min-w-0">
+                    <p className="text-[11px] font-bold text-text-main">{payment.xpmtnum}</p>
+                    <p className="text-[10px] text-text-muted">{payment.xpaydate} · {payment.xpaytype} · {payment.xpaystatus}</p>
+                    {payment.xremarks && <p className="text-[10px] text-text-secondary mt-0.5 break-words">{payment.xremarks}</p>}
+                  </div>
+                  <span className="shrink-0 text-[11px] font-bold text-emerald-700">৳{Number(payment.xpayamt).toLocaleString()}</span>
+                </div>
+              ))}
+            </div>
+          )}
+          {paymentHistory.length < paymentHistoryTotal && (
+            <button
+              type="button"
+              onClick={() => void loadPaymentHistory(paymentHistory.length, true)}
+              disabled={paymentHistoryLoading}
+              className="mt-3 w-full py-2 text-[11px] font-bold text-primary disabled:opacity-50"
+            >
+              {paymentHistoryLoading ? 'Loading...' : 'Load more payments'}
+            </button>
+          )}
+        </section>
 
         {/* Late Payment Warning Banner */}
         {isLatePayment && validation.ok && !isLocked && (
@@ -413,9 +344,6 @@ export default function Payment() {
             </div>
           </div>
         )}
-
-        {/* Payment Error Display */}
-        {paymentError && renderPaymentError()}
 
         {/* Payment Form */}
         <div className="bg-bg-card border border-ui-border rounded-[16px] p-4 shadow-sm">
@@ -477,21 +405,19 @@ export default function Payment() {
               <input
                 type="number"
                 min="0"
-                max={orderTotalAmount || undefined}
+                max={remainingDue}
                 value={paymentAmount}
                 onChange={(e) => {
+                  paymentAmountTouched.current = true;
                   setPaymentAmount(e.target.value);
-                  clearPaymentError();
                 }}
-                disabled={isLocked || isSubmitting}
+                disabled={isLocked || isSubmitting || remainingDue <= 0}
                 className="w-full h-[42px] px-3 py-2 text-[13px] bg-bg-base border border-ui-border rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-200 focus:border-teal-300 transition-all text-text-main appearance-none disabled:opacity-60"
                 placeholder="Enter amount"
               />
-              {orderTotalAmount && (
-                <p className="text-[9.5px] text-text-muted mt-1 ml-1">
-                  DO Total: ৳{Number(orderTotalAmount).toLocaleString()}
-                </p>
-              )}
+              <p className="text-[9.5px] text-text-muted mt-1 ml-1">
+                Remaining due: ৳{remainingDue.toLocaleString()} · DO total: ৳{orderTotalAmount.toLocaleString()}
+              </p>
             </div>
 
             <div>
@@ -521,14 +447,6 @@ export default function Payment() {
                 placeholder="Any additional notes"
               />
             </div>
-
-            {/* Live Validation Feedback */}
-            {!validation.ok && (paymentDate || paymentType || paymentAmount) && (
-              <div className="p-2.5 rounded-[12px] border border-error/30 bg-error/5 flex items-start gap-2">
-                <AlertTriangle className="w-3.5 h-3.5 text-error shrink-0 mt-0.5" />
-                <p className="text-[11px] font-medium text-error leading-snug">{validation.reason}</p>
-              </div>
-            )}
 
             {/* Summary Preview */}
             {(paymentDate || paymentType || paymentAmount || bankDetail || remarks) && (
@@ -582,15 +500,15 @@ export default function Payment() {
         <Button
           variant={isLocked ? 'outline' : 'primary'}
           size="lg"
-          className={`w-full ${!isLocked && validation.ok && !paymentError ? 'shadow-lg shadow-primary/20' : ''}`}
+          className={`w-full ${!isLocked && validation.ok ? 'shadow-lg shadow-primary/20' : ''}`}
           onClick={handleSubmit}
-          disabled={isLocked || !validation.ok || isSubmitting || !!paymentError}
+          disabled={isLocked || remainingDue <= 0 || isSubmitting}
           isLoading={isSubmitting}
         >
           {isLocked ? (
             <><Lock className="w-3.5 h-3.5 mr-1.5" />Payment Already Submitted</>
-          ) : paymentError ? (
-            <><AlertTriangle className="w-3.5 h-3.5 mr-1.5" />Fix Issues Above</>
+          ) : remainingDue <= 0 ? (
+            'Fully Paid'
           ) : isLatePayment ? (
             <><Clock className="w-3.5 h-3.5 mr-1.5" />Submit Late Payment ({daysLate} days late)</>
           ) : (
