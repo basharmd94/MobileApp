@@ -170,7 +170,7 @@ export default function DeliveryOrders() {
                       <p className="text-[10px] text-text-muted ml-5">{order.xadd1}</p>
                     </div>
                     <div className="text-right">
-                      <span className="text-[12px] font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded-lg border border-emerald-100 flex items-center gap-1"><TrendingUp className="w-3 h-3" />৳{order.netamt?.toLocaleString()}</span>
+                      <span className="text-[12px] font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded-lg border border-emerald-100 flex items-center gap-1"><TrendingUp className="w-3 h-3" />৳{order.total_amount?.toLocaleString()}</span>
                     </div>
                   </div>
                   <div className="flex flex-col gap-1.5 mb-3 p-2.5 bg-white/60 rounded-[12px] border border-orange-50">

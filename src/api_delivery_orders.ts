@@ -22,6 +22,7 @@ export interface DeliveryOrder {
   grossamt: number;
   discamt: number;
   netamt: number;
+  total_amount: number;
   xdate: string;
   xdatepay: string | null;
   xpaydate?: string | null;

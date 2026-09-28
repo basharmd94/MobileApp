@@ -3,7 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { 
   User, Hash, Calendar, TrendingUp, CreditCard, Banknote, 
   MessageSquare, AlertTriangle, CheckCircle2, Lock, Info, 
-  XCircle, RefreshCw 
+  XCircle, RefreshCw, Clock 
 } from 'lucide-react';
 import Header from '../components/ui/Header';
 import { Button, ConfirmModal } from '../components';
@@ -14,11 +14,13 @@ import { useCurrentUser } from '../hooks/useCurrentUser';
 import { useToast } from '../hooks/useToast';
 import { isOnOrAfterDay, isBeforeDay, isOnOrBeforeDay, isSameDay, humanizeDate, todayIso } from '../utils/dates';
 
-interface PaymentError {
-  type: 'validation' | 'overpayment' | 'server' | 'version';
-  message: string;
-  details?: any;
-}
+// Helper function to calculate days late
+const getDaysLate = (expectedDate: string, actualDate: string): number => {
+  const expected = new Date(expectedDate);
+  const actual = new Date(actualDate);
+  const diffTime = Math.abs(actual.getTime() - expected.getTime());
+  return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+};
 
 export default function Payment() {
   const location = useLocation();
@@ -37,12 +39,23 @@ export default function Payment() {
   const [remarks, setRemarks] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
-  const [paymentError, setPaymentError] = useState<PaymentError | null>(null);
+  const [paymentError, setPaymentError] = useState<any>(null);
   const [retryCount, setRetryCount] = useState(0);
   const { errorToast, successToast, showError, showSuccess } = useToast();
 
   const expectedPayDate = order?.xdatepay || null;
   const deliveryDate = order?.xdate || null;
+
+  // ─── Check if payment is late ──────────────────────────────────────────
+  const isLatePayment = useMemo(() => {
+    if (!expectedPayDate || !paymentDate) return false;
+    return isBeforeDay(expectedPayDate, paymentDate);
+  }, [expectedPayDate, paymentDate]);
+
+  const daysLate = useMemo(() => {
+    if (!isLatePayment || !expectedPayDate || !paymentDate) return 0;
+    return getDaysLate(expectedPayDate, paymentDate);
+  }, [isLatePayment, expectedPayDate, paymentDate]);
 
   // ─── Validation ──────────────────────────────────────────────────────────
   const validation = useMemo(() => {
@@ -62,20 +75,14 @@ export default function Payment() {
         reason: `Payment date cannot be earlier than the delivery date (${deliveryDate}).`,
       };
     }
-    // Additional validation: check if payment amount exceeds total
     if (order?.netamt && amount > Number(order.netamt)) {
       return {
         ok: false,
-        reason: `Payment amount (৳${amount.toLocaleString()}) exceeds the DO total (৳${Number(order.netamt).toLocaleString()}). Please adjust the amount or contact support.`,
+        reason: `Payment amount (৳${amount.toLocaleString()}) exceeds the DO total (৳${Number(order.netamt).toLocaleString()}).`,
       };
     }
     return { ok: true, reason: '' };
   }, [paymentDate, paymentType, paymentAmount, deliveryDate, order?.netamt]);
-
-  const paymentDateAfterExpected = useMemo(
-    () => Boolean(expectedPayDate) && isBeforeDay(expectedPayDate, paymentDate),
-    [expectedPayDate, paymentDate]
-  );
 
   // ─── Error handlers ─────────────────────────────────────────────────────
   const handlePaymentError = (error: any) => {
@@ -113,7 +120,6 @@ export default function Payment() {
       showError(validation.reason);
       return;
     }
-    // Clear any previous errors
     clearPaymentError();
     setIsConfirmModalOpen(true);
   };
@@ -143,8 +149,13 @@ export default function Payment() {
       const response = await createCustomerPayment(payload);
       
       if (response.success) {
-        showSuccess(response.message || 'Payment submitted successfully');
-        // Show payment details in success message
+        // Show appropriate success message
+        if (isLatePayment) {
+          showSuccess(`⚠️ Late payment recorded! ${daysLate} days late. Payment successful!`);
+        } else {
+          showSuccess(response.message || 'Payment submitted successfully');
+        }
+        
         const details = [];
         if (response.xpmtnum) details.push(`Transaction: ${response.xpmtnum}`);
         if (response.xremaining !== undefined) details.push(`Remaining: ৳${Number(response.xremaining).toLocaleString()}`);
@@ -346,9 +357,10 @@ export default function Payment() {
                 <Calendar className="w-3.5 h-3.5 text-purple-500" />
                 <span className="text-[10px] font-medium text-text-secondary">
                   Expected Pay Date:{' '}
-                  <span className="font-bold text-text-main">
+                  <span className={`font-bold ${isBeforeDay(expectedPayDate, todayIso()) ? 'text-error' : 'text-text-main'}`}>
                     {expectedPayDate}
                     {isSameDay(expectedPayDate, todayIso()) && ' (Today)'}
+                    {isBeforeDay(expectedPayDate, todayIso()) && ' (Past Due)'}
                   </span>
                 </span>
               </div>
@@ -373,11 +385,30 @@ export default function Payment() {
                       : isSameDay(expectedPayDate, todayIso())
                         ? ' (today is the last day).'
                         : ' (customer can pay early).'}
+                    {' '}You can also record late payments after the expected date.
                   </>
                 ) : (
                   <>The expected pay date has not been set yet. Use the <b>Pay Date</b> action on the delivery order to set it first.</>
                 )}
               </p>
+            </div>
+          </div>
+        )}
+
+        {/* Late Payment Warning Banner */}
+        {isLatePayment && validation.ok && !isLocked && (
+          <div className="p-4 rounded-[16px] border border-amber-300 bg-amber-50/80 shadow-sm">
+            <div className="flex items-start gap-3">
+              <div className="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center shrink-0">
+                <Clock className="w-4 h-4 text-amber-600" />
+              </div>
+              <div className="flex-1">
+                <h4 className="text-[12px] font-bold text-amber-800">⚠️ Late Payment</h4>
+                <p className="text-[10px] text-amber-700 leading-relaxed mt-0.5">
+                  This payment is being recorded <b>{daysLate} days</b> after the expected date ({expectedPayDate}).
+                  Please confirm with the customer that this is correct.
+                </p>
+              </div>
             </div>
           </div>
         )}
@@ -403,13 +434,20 @@ export default function Payment() {
                 onChange={(e) => setPaymentDate(e.target.value)}
                 disabled={isLocked || isSubmitting}
                 min={deliveryDate || undefined}
-                max={expectedPayDate || undefined}
+                // REMOVED: max={expectedPayDate || undefined} - Now allows late payments
                 className="w-full h-[42px] px-3 py-2 text-[13px] bg-bg-base border border-ui-border rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-200 focus:border-teal-300 transition-all text-text-main appearance-none disabled:opacity-60"
               />
               {expectedPayDate && !isLocked && (
-                <p className="text-[9.5px] text-text-muted mt-1 ml-1">
-                  Allowed range: <b>{deliveryDate || '—'}</b> to <b>{expectedPayDate}</b>
-                  {' '}(customer's promise)
+                <p className="text-[9.5px] mt-1 ml-1">
+                  {!isLatePayment ? (
+                    <span className="text-text-muted">
+                      Allowed from: <b>{deliveryDate || '—'}</b> to <b>{expectedPayDate}</b> (customer's promise)
+                    </span>
+                  ) : (
+                    <span className="text-amber-600 font-medium">
+                      ⚠️ Late payment — expected date was {expectedPayDate} ({daysLate} days late)
+                    </span>
+                  )}
                 </p>
               )}
             </div>
@@ -491,22 +529,19 @@ export default function Payment() {
               </div>
             )}
 
-            {validation.ok && paymentDateAfterExpected && (
-              <div className="p-2.5 rounded-[12px] border border-amber-200 bg-amber-50 flex items-start gap-2">
-                <AlertTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0 mt-0.5" />
-                <p className="text-[11px] font-medium text-amber-800 leading-snug">
-                  Payment date is after the customer's promised date ({expectedPayDate}). Are you sure? They can still pay late, but consider collecting any revision of the expected date.
-                </p>
-              </div>
-            )}
-
             {/* Summary Preview */}
             {(paymentDate || paymentType || paymentAmount || bankDetail || remarks) && (
               <div className="mt-3 p-3 bg-bg-base rounded-lg border border-ui-border space-y-2">
                 {paymentDate && (
                   <div className="flex items-center justify-between">
                     <span className="text-[10px] font-medium text-text-secondary flex items-center gap-1.5"><Calendar className="w-3 h-3 text-primary" />Payment Date</span>
-                    <span className="text-[11px] font-bold text-teal-600">{paymentDate} <span className="text-text-muted font-normal">({humanizeDate(paymentDate)})</span></span>
+                    <span className="text-[11px] font-bold text-teal-600">
+                      {paymentDate} 
+                      {isLatePayment && (
+                        <span className="text-amber-500 ml-1 text-[9px]">(Late)</span>
+                      )}
+                      <span className="text-text-muted font-normal ml-1">({humanizeDate(paymentDate)})</span>
+                    </span>
                   </div>
                 )}
                 {paymentType && (
@@ -555,16 +590,28 @@ export default function Payment() {
             <><Lock className="w-3.5 h-3.5 mr-1.5" />Payment Already Submitted</>
           ) : paymentError ? (
             <><AlertTriangle className="w-3.5 h-3.5 mr-1.5" />Fix Issues Above</>
+          ) : isLatePayment ? (
+            <><Clock className="w-3.5 h-3.5 mr-1.5" />Submit Late Payment ({daysLate} days late)</>
           ) : (
             'Submit Payment'
           )}
         </Button>
+        
+        {isLatePayment && !isLocked && (
+          <p className="text-[10px] text-amber-600 text-center mt-2 flex items-center justify-center gap-1">
+            <AlertTriangle className="w-3 h-3" /> This is a late payment. Please verify with the customer before submitting.
+          </p>
+        )}
       </div>
 
       <ConfirmModal
         isOpen={isConfirmModalOpen}
-        title="Confirm Payment"
-        message={`Submit payment of ৳${Number(paymentAmount).toLocaleString()} for order ${order.xdornum}?`}
+        title={isLatePayment ? "⚠️ Confirm Late Payment" : "Confirm Payment"}
+        message={
+          isLatePayment 
+            ? `⚠️ This is a LATE payment (${daysLate} days late).\n\nSubmit payment of ৳${Number(paymentAmount).toLocaleString()} for order ${order.xdornum}?\n\nExpected date was: ${expectedPayDate}\nActual payment date: ${paymentDate}`
+            : `Submit payment of ৳${Number(paymentAmount).toLocaleString()} for order ${order.xdornum}?`
+        }
         onCancel={() => setIsConfirmModalOpen(false)}
         onConfirm={executeSubmit}
         isProcessing={isSubmitting}
