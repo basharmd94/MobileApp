@@ -51,6 +51,7 @@ export function CustomerSearch({
       abortControllerRef.current.abort();
       abortControllerRef.current = null;
     }
+    fetchIdRef.current += 1;
   };
 
   const displayText = value ? `${value.xcus} - ${value.xorg}` : '';
@@ -194,10 +195,10 @@ export function CustomerSearch({
   };
 
   const clearSelection = () => {
+    cancelInFlight();
     onChange(null);
     setQuery('');
     setResults([]);
-    // ─── FIX: Ensure loading is false when clearing selection ───
     setIsLoading(false);
     fieldRef.current?.focus();
   };
@@ -274,9 +275,9 @@ export function CustomerSearch({
                     type="button"
                     className="p-1 rounded-full text-text-muted hover:text-text-main hover:bg-gray-100 transition-colors focus:outline-none"
                     onClick={() => {
+                      cancelInFlight();
                       setQuery('');
                       setResults([]);
-                      // ─── FIX: Clear loading when clearing query ───
                       setIsLoading(false);
                       overlayInputRef.current?.focus();
                     }}

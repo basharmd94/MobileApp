@@ -3,6 +3,7 @@ import {
   RotateCcw, List, Sparkles,
   Clock, CheckCircle2, Ban,
   Users, Box, Truck, ShoppingBag,
+  ClipboardList, ClipboardCheck,
   type LucideIcon
 } from 'lucide-react';
 
@@ -84,9 +85,9 @@ export const DASHBOARD_ACTIONS: ActionConfig[][] = [
   ],
   // Row 3 — Return & Masters
   [
-    { id: 'return',        icon: RotateCcw, label: 'Return',      color: 'cyan',   route: '/delivery-orders' },
-    { id: 'return-list',   icon: List,      label: 'Return List', color: 'teal',   route: '/return-list' },
-    { id: 'coming-soon-1', icon: Sparkles,  label: 'Coming Soon', color: 'indigo', comingSoon: true },
+    { id: 'return',           icon: RotateCcw,      label: 'Return',           color: 'cyan',   route: '/delivery-orders' },
+    { id: 'pending-returns',  icon: ClipboardList,  label: 'Pending Returns',  color: 'orange', route: '/pending-returns' },
+    { id: 'approved-returns', icon: ClipboardCheck, label: 'Approved Returns', color: 'teal',   route: '/approved-returns' },
   ],
   // Row 4 — Master Data
   [

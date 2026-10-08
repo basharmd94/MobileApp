@@ -46,6 +46,7 @@ export function ItemSearch({
       abortControllerRef.current.abort();
       abortControllerRef.current = null;
     }
+    fetchIdRef.current += 1;
   };
 
   const displayText = value ? `${value.item_id} - ${value.item_name}` : '';
@@ -276,6 +277,7 @@ export function ItemSearch({
   };
 
   const clearSelection = () => {
+    cancelInFlight();
     onChange(null);
     setQuery('');
     setResults([]);
@@ -354,8 +356,10 @@ export function ItemSearch({
                     type="button"
                     className="text-text-muted hover:text-text-main focus:outline-none p-1 rounded-md hover:bg-gray-100"
                     onClick={() => {
+                      cancelInFlight();
                       setQuery('');
                       setResults([]);
+                      setIsLoading(false);
                       overlayInputRef.current?.focus();
                     }}
                     aria-label="Clear"

@@ -1,10 +1,11 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Loader2, Calendar, Package, TrendingUp, Hash, User, List } from 'lucide-react';
 import { getPendingOrders, getConfirmedOrders, getCancelledOrders, PendingOrder } from '../api_orders';
 import Header from '../components/ui/Header';
 import BusinessTabs from '../components/BusinessTabs';
 import LoadMoreButton from '../components/LoadMoreButton';
+import { getOrderKey, mergeOrders } from '../utils/orderList';
 
 interface OrderHistoryProps {
   type: 'pending' | 'confirmed' | 'cancelled';
@@ -18,6 +19,8 @@ export default function OrderHistory({ type }: OrderHistoryProps) {
   const [limit, setLimit] = useState(10);
   const [hasMore, setHasMore] = useState(true);
   const [activeTab, setActiveTab] = useState<string>('100001');
+  const requestControllerRef = useRef<AbortController | null>(null);
+  const requestGenerationRef = useRef(0);
 
   const getTitle = () => {
     switch(type) {
@@ -29,43 +32,55 @@ export default function OrderHistory({ type }: OrderHistoryProps) {
   };
 
   const fetchOrders = useCallback(async (currentLimit: number, isLoadMore = false) => {
+    requestControllerRef.current?.abort();
+    const controller = new AbortController();
+    requestControllerRef.current = controller;
+    const requestGeneration = ++requestGenerationRef.current;
+
     if (isLoadMore) setLoadingMore(true);
     else setLoading(true);
+
     try {
       let fetchFn;
       if (type === 'pending') fetchFn = getPendingOrders;
       else if (type === 'confirmed') fetchFn = getConfirmedOrders;
       else fetchFn = getCancelledOrders;
-      const res = await fetchFn(currentLimit, activeTab);
+
+      const res = await fetchFn(currentLimit, activeTab, { signal: controller.signal });
       const fetchedOrders = res.orders || [];
-      setOrders(prev => {
-        if (!isLoadMore) return fetchedOrders;
-        if (fetchedOrders.length >= prev.length) return fetchedOrders;
-        const newOrders = fetchedOrders.filter(
-          (fo: PendingOrder) => !prev.some((po) => po.invoiceno === fo.invoiceno)
-        );
-        return [...prev, ...newOrders];
-      });
+
+      if (requestGeneration !== requestGenerationRef.current) return;
+
+      setOrders(prev => isLoadMore ? mergeOrders(prev, fetchedOrders) : fetchedOrders);
       setHasMore(fetchedOrders.length >= currentLimit);
     } catch (error) {
+      if (controller.signal.aborted) return;
       console.error('Failed to fetch orders:', error);
       if (!isLoadMore) setOrders([]);
     } finally {
-      if (isLoadMore) setLoadingMore(false);
-      else setLoading(false);
+      if (requestGeneration === requestGenerationRef.current) {
+        if (isLoadMore) setLoadingMore(false);
+        else setLoading(false);
+      }
     }
   }, [type, activeTab]);
 
   useEffect(() => {
     setLimit(10);
-    fetchOrders(10);
+    setOrders([]);
+    setHasMore(true);
+    void fetchOrders(10);
+
+    return () => {
+      requestControllerRef.current?.abort();
+    };
   }, [fetchOrders, activeTab]);
 
   const loadMore = () => {
     if (loadingMore || !hasMore || loading) return;
     const newLimit = limit + 10;
     setLimit(newLimit);
-    fetchOrders(newLimit, true);
+    void fetchOrders(newLimit, true);
   };
 
   return (
@@ -90,8 +105,8 @@ export default function OrderHistory({ type }: OrderHistoryProps) {
           </div>
         ) : (
           <div className="card-grid">
-            {orders.map((order, i) => (
-              <div key={order.invoiceno || i} className="bg-[#fff7ed] border border-orange-100 p-3.5 rounded-[16px] shadow-[0_2px_10px_rgb(0,0,0,0.03)]">
+            {orders.map((order) => (
+              <div key={getOrderKey(order)} className="bg-[#fff7ed] border border-orange-100 p-3.5 rounded-[16px] shadow-[0_2px_10px_rgb(0,0,0,0.03)]">
                 <div className="flex justify-between items-start mb-3">
                   <div>
                     <h3 className="text-[13px] font-bold text-text-main flex items-center gap-1.5">

@@ -1,10 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { login } from '../api_users';
 import { ArrowRight, AlertCircle } from 'lucide-react';
 import { Input, Button } from '../components';
 
 export default function Login() {
+  const passwordInputRef = useRef<HTMLInputElement>(null);
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -21,7 +22,6 @@ export default function Login() {
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError('');
     setIsLoading(true);
 
     try {
@@ -29,6 +29,9 @@ export default function Login() {
       navigate('/');
     } catch (err: any) {
       setError(err.message || 'An error occurred during login.');
+      setUsername('');
+      setPassword('');
+      window.requestAnimationFrame(() => passwordInputRef.current?.focus());
     } finally {
       setIsLoading(false);
     }
@@ -55,7 +58,11 @@ export default function Login() {
 
         <form className="space-y-5" onSubmit={handleLogin}>
           {error && (
-            <div className="bg-error/10 text-error p-3 rounded-xl text-xs font-medium border border-error/20 flex items-center justify-center text-center animate-in fade-in zoom-in duration-300 gap-1.5">
+            <div
+              role="alert"
+              aria-live="assertive"
+              className="bg-error/10 text-error p-3 rounded-xl text-xs font-medium border border-error/20 flex items-center justify-center text-center animate-in fade-in zoom-in duration-300 gap-1.5"
+            >
               <AlertCircle className="w-4 h-4 shrink-0" />
               {error}
             </div>
@@ -71,6 +78,7 @@ export default function Login() {
               placeholder="Enter your username"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
+              autoComplete="username"
             />
             
             <Input
@@ -82,6 +90,8 @@ export default function Login() {
               placeholder="Enter your password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
+              autoComplete="current-password"
+              ref={passwordInputRef}
               rightElement={
                 <a href="#" className="text-xs font-bold text-primary hover:text-primary-hover transition-colors">Forgot?</a>
               }

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Loader2, Filter, X, Package, Calendar, Hash, User, TrendingUp, ChevronDown, ChevronUp, Building2, Circle, RotateCcw } from 'lucide-react';
+import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
+import { Loader2, Filter, X, Package, Calendar, Hash, User, TrendingUp, ChevronDown, ChevronUp, Building2, Circle, RotateCcw, Clock, CheckCircle2 } from 'lucide-react';
 import { getSalesReturns, ReturnOrder } from '../api_return';
 import { Customer } from '../api_customers';
 import { Item } from '../api_items';
@@ -10,9 +10,26 @@ import BusinessTabs from '../components/BusinessTabs';
 import LoadMoreButton from '../components/LoadMoreButton';
 import { useCurrentUser } from '../hooks/useCurrentUser';
 
-export default function ReturnList() {
+interface ReturnListProps {
+  type?: 'pending' | 'approved';
+}
+
+export default function ReturnList({ type }: ReturnListProps) {
   const navigate = useNavigate();
+  const location = useLocation();
+  const [searchParams] = useSearchParams();
   const { employeeId } = useCurrentUser();
+
+  // Resolve whether this view is for pending or approved returns
+  const isPending = (() => {
+    if (type) return type === 'pending';
+    const qView = searchParams.get('view');
+    if (qView === 'approved') return false;
+    if (qView === 'pending' || qView === 'submitted') return true;
+    if (location.pathname.includes('approved')) return false;
+    return true; // default to pending
+  })();
+
   const [returns, setReturns] = useState<ReturnOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -41,7 +58,7 @@ export default function ReturnList() {
         xcus: customer?.xcus || undefined,
         xdate: xdate || undefined, 
         xitem: item?.item_id || undefined,
-      });
+      }, isPending);
       const fetchedReturns = res.returns || [];
       setReturns(prev => {
         if (!isLoadMore) return fetchedReturns;
@@ -59,10 +76,12 @@ export default function ReturnList() {
       if (isLoadMore) setLoadingMore(false);
       else setLoading(false);
     }
-  }, [activeTab, xdornum, xcrnnum, customer, xdate, item]);
+  }, [activeTab, isPending, xdornum, xcrnnum, customer, xdate, item]);
 
   useEffect(() => {
     setLimit(10);
+    setReturns([]);
+    setHasMore(true);
     fetchReturns(10);
   }, [fetchReturns]);
 
@@ -88,6 +107,9 @@ export default function ReturnList() {
   };
 
   const getStatusBadge = (status: string | null) => {
+    if (isPending) {
+      return { color: 'bg-amber-100', textColor: 'text-amber-700', text: 'Pending', dotColor: 'bg-amber-500' };
+    }
     switch (status) {
       case '1-Open': return { color: 'bg-emerald-100', textColor: 'text-emerald-700', text: 'Open', dotColor: 'bg-emerald-500' };
       case '2-Confirmed': return { color: 'bg-blue-100', textColor: 'text-blue-700', text: 'Confirmed', dotColor: 'bg-blue-500' };
@@ -97,9 +119,11 @@ export default function ReturnList() {
     }
   };
 
+  const pageTitle = isPending ? 'Pending Returns' : 'Approved Returns';
+
   return (
     <div className="h-[100dvh] bg-bg-base flex flex-col relative max-w-md mx-auto shadow-2xl overflow-hidden md:max-w-full">
-      <Header title="Sales Returns">
+      <Header title={pageTitle}>
         <div className="mt-4">
           <BusinessTabs activeTab={activeTab} onChange={setActiveTab} className="mb-3" />
         </div>
@@ -159,7 +183,9 @@ export default function ReturnList() {
         ) : returns.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-center">
             <RotateCcw className="w-12 h-12 text-orange-200 mb-3" />
-            <p className="text-[12px] font-bold text-text-muted">No sales returns found.</p>
+            <p className="text-[12px] font-bold text-text-muted">
+              {isPending ? 'No pending sales returns found.' : 'No approved sales returns found.'}
+            </p>
           </div>
         ) : (
           <div className="space-y-4">

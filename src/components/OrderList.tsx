@@ -2,6 +2,7 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Package, TrendingUp } from 'lucide-react';
 import { PendingOrder } from '../api_orders';
+import { getOrderKey } from '../utils/orderList';
 import { Card } from './Card';
 
 interface OrderListProps {
@@ -50,7 +51,7 @@ export function OrderList({ title, orders, loading, viewAllLink, emptyMessage = 
       ) : (
         <Card className="!p-2 !rounded-xl mb-2 overflow-hidden bg-white shadow-[0_2px_10px_rgb(0,0,0,0.04)]">
           {orders.map((order, i) => (
-            <div key={order.invoiceno || i} className={`flex flex-col p-2.5 ${i !== orders.length - 1 ? 'border-b border-ui-border/40' : ''}`}>
+            <div key={getOrderKey(order)} className={`flex flex-col p-2.5 ${i !== orders.length - 1 ? 'border-b border-ui-border/40' : ''}`}>
               <div className="flex justify-between items-start mb-1">
                 <span className="text-[11px] font-bold text-text-main leading-tight truncate mr-2">
                   {order.xcusname}

@@ -90,7 +90,10 @@ export interface GetReturnsParams {
   offset?: number;
 }
 
-export const getSalesReturns = async (params: GetReturnsParams): Promise<ReturnsListResponse> => {
+export const getSalesReturns = async (
+  params: GetReturnsParams,
+  temporary = false
+): Promise<ReturnsListResponse> => {
   const queryParams = new URLSearchParams();
   queryParams.append('zid', params.zid);
   
@@ -102,6 +105,15 @@ export const getSalesReturns = async (params: GetReturnsParams): Promise<Returns
   if (params.limit !== undefined) queryParams.append('limit', params.limit.toString());
   if (params.offset !== undefined) queryParams.append('offset', params.offset.toString());
 
-  const response = await api.get(`/return/get-sales-returns?${queryParams.toString()}`);
+  const endpoint = temporary
+    ? '/return/get-temporary-sales-returns'
+    : '/return/get-sales-returns';
+  const response = await api.get(`${endpoint}?${queryParams.toString()}`);
   return response.data;
+};
+
+export const getTemporarySalesReturns = async (
+  params: GetReturnsParams
+): Promise<ReturnsListResponse> => {
+  return getSalesReturns(params, true);
 };

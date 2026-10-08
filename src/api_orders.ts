@@ -1,4 +1,5 @@
 import api from './api';
+import type { AxiosRequestConfig } from 'axios';
 
 export interface PendingOrder {
   zid: number;
@@ -20,35 +21,38 @@ export interface OrdersResponse {
   status: string;
 }
 
-export const getPendingOrders = async (limit: number = 10, zid?: string): Promise<OrdersResponse> => {
+type OrderRequestOptions = Pick<AxiosRequestConfig, 'signal'>;
+
+const getOrders = async (
+  endpoint: string,
+  limit: number,
+  zid?: string,
+  options?: OrderRequestOptions,
+): Promise<OrdersResponse> => {
   const params = new URLSearchParams();
   if (zid) {
     params.append('zid', zid);
   }
   params.append('limit', limit.toString());
 
-  const response = await api.get(`/order/get-pending-orders?${params.toString()}`);
+  const response = await api.get(`${endpoint}?${params.toString()}`, options);
   return response.data;
 };
 
-export const getConfirmedOrders = async (limit: number = 10, zid?: string): Promise<OrdersResponse> => {
-  const params = new URLSearchParams();
-  if (zid) {
-    params.append('zid', zid);
-  }
-  params.append('limit', limit.toString());
+export const getPendingOrders = async (
+  limit: number = 10,
+  zid?: string,
+  options?: OrderRequestOptions,
+): Promise<OrdersResponse> => getOrders('/order/get-pending-orders', limit, zid, options);
 
-  const response = await api.get(`/order/get-confirmed-orders?${params.toString()}`);
-  return response.data;
-};
+export const getConfirmedOrders = async (
+  limit: number = 10,
+  zid?: string,
+  options?: OrderRequestOptions,
+): Promise<OrdersResponse> => getOrders('/order/get-confirmed-orders', limit, zid, options);
 
-export const getCancelledOrders = async (limit: number = 10, zid?: string): Promise<OrdersResponse> => {
-  const params = new URLSearchParams();
-  if (zid) {
-    params.append('zid', zid);
-  }
-  params.append('limit', limit.toString());
-
-  const response = await api.get(`/order/get-cancelled-orders?${params.toString()}`);
-  return response.data;
-};
+export const getCancelledOrders = async (
+  limit: number = 10,
+  zid?: string,
+  options?: OrderRequestOptions,
+): Promise<OrdersResponse> => getOrders('/order/get-cancelled-orders', limit, zid, options);

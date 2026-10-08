@@ -144,9 +144,34 @@ function AppContent() {
             <SalesReturn />
           </ProtectedRoute>
         } />
+        <Route path="/pending-returns" element={
+          <ProtectedRoute>
+            <ReturnList type="pending" />
+          </ProtectedRoute>
+        } />
+        <Route path="/approved-returns" element={
+          <ProtectedRoute>
+            <ReturnList type="approved" />
+          </ProtectedRoute>
+        } />
         <Route path="/return-list" element={
           <ProtectedRoute>
-            <ReturnList />
+            <ReturnList type="pending" />
+          </ProtectedRoute>
+        } />
+        <Route path="/created-return-list" element={
+          <ProtectedRoute>
+            <ReturnList type="pending" />
+          </ProtectedRoute>
+        } />
+        <Route path="/created-returns" element={
+          <ProtectedRoute>
+            <ReturnList type="pending" />
+          </ProtectedRoute>
+        } />
+        <Route path="/approved-return-list" element={
+          <ProtectedRoute>
+            <ReturnList type="approved" />
           </ProtectedRoute>
         } />
         <Route path="/customers" element={
